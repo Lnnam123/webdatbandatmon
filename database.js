@@ -80,10 +80,8 @@ export async function updateTableSession(tableId, sessionToken) {
   );
 }
 
-// Tạo đơn hàng mới
+// Tạo đơn hàng mới hoặc thêm vào đơn hiện tại
 export async function createOrder(tableId, sessionToken, cart) {
-  // Bắt đầu một transaction đơn giản
-  // Tính tổng số tiền
   let totalAmount = 0;
   for (const item of cart) {
     const menuItem = await dbGet('SELECT price FROM menu_items WHERE id = ?', [item.id]);
@@ -92,18 +90,33 @@ export async function createOrder(tableId, sessionToken, cart) {
     }
   }
 
-  // 1. Chèn đơn hàng mới
-  // Lưu ý: db.run không trả về ID chèn trực tiếp qua promisify thông thường, chúng ta viết hàm bao
-  const orderId = await new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO orders (table_id, session_token, status, total_amount) VALUES (?, ?, ?, ?)',
-      [tableId, sessionToken, 'pending', totalAmount],
-      function (err) {
-        if (err) reject(err);
-        else resolve(this.lastID);
-      }
+  // Kiểm tra xem đã có order active chưa
+  let order = await dbGet(
+    'SELECT id FROM orders WHERE table_id = ? AND session_token = ? AND status != "paid" ORDER BY id DESC LIMIT 1',
+    [tableId, sessionToken]
+  );
+
+  let orderId;
+  if (order) {
+    orderId = order.id;
+    // Cập nhật tổng tiền
+    await dbRun(
+      'UPDATE orders SET total_amount = total_amount + ? WHERE id = ?',
+      [totalAmount, orderId]
     );
-  });
+  } else {
+    // 1. Chèn đơn hàng mới
+    orderId = await new Promise((resolve, reject) => {
+      db.run(
+        'INSERT INTO orders (table_id, session_token, status, total_amount) VALUES (?, ?, ?, ?)',
+        [tableId, sessionToken, 'pending', totalAmount],
+        function (err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        }
+      );
+    });
+  }
 
   // 2. Chèn các món ăn trong giỏ hàng
   for (const item of cart) {
@@ -148,7 +161,7 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
 // Cập nhật trạng thái chi tiết món ăn trong đơn (dành cho đầu bếp)
 export async function updateOrderItemStatus(orderItemId, status) {
   await dbRun('UPDATE order_items SET status = ? WHERE id = ?', [status, orderItemId]);
-  
+
   // Kiểm tra xem tất cả các món trong order đã 'done' chưa. Nếu rồi thì cập nhật trạng thái order
   const item = await dbGet('SELECT order_id FROM order_items WHERE id = ?', [orderItemId]);
   if (item) {
@@ -164,7 +177,7 @@ export async function updateOrderItemStatus(orderItemId, status) {
 export async function checkoutTable(tableId) {
   // Cập nhật trạng thái bàn thành 'pending_payment'
   await dbRun('UPDATE tables SET status = "pending_payment" WHERE id = ?', [tableId]);
-  
+
   // Lấy chi tiết đơn hàng hiện tại
   const table = await dbGet('SELECT current_session_token FROM tables WHERE id = ?', [tableId]);
   if (table && table.current_session_token) {
@@ -185,7 +198,7 @@ export async function confirmPayment(tableId) {
         [tableId, table.current_session_token]
       );
     }
-    
+
     // 2. Trả bàn về trạng thái 'available' (trống) và xóa session token
     await dbRun(
       'UPDATE tables SET status = "available", current_session_token = NULL WHERE id = ?',

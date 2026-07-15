@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Bind Events
   setupEventListeners();
+  setupNewModalsEvents();
 });
 
 // SHOW WELCOME SCREEN WITH SIMULATION OPTIONS
@@ -140,7 +141,10 @@ async function initApp(qrToken) {
     cartBottomBar.style.display = 'flex';
 
     // Cập nhật Header Table Badge
-    tableNumberBadge.innerHTML = `<span class="status-dot"></span> Bàn: ${state.table.table_number}`;
+    const kiotTableName = document.getElementById('kiot-table-name');
+    if (kiotTableName) {
+      kiotTableName.textContent = `${state.table.table_number}`;
+    }
     updateTableStatusUi(state.table.status);
 
     // Khởi tạo WebSocket kết nối thực tế
@@ -226,14 +230,19 @@ function renderMenu() {
     ? state.menu
     : state.menu.filter(item => item.category === state.selectedCategory);
 
+  const totalMenuItemsLabel = document.getElementById('total-menu-items');
+  if (totalMenuItemsLabel) {
+    totalMenuItemsLabel.textContent = `Tất cả ${filtered.length} món`;
+  }
+
   if (filtered.length === 0) {
-    menuItemsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">Danh mục này hiện chưa có món.</p>`;
+    menuItemsGrid.innerHTML = `<p style="text-align: center; color: var(--text-secondary); width: 100%;">Danh mục này hiện chưa có món.</p>`;
     return;
   }
 
   filtered.forEach(item => {
     const card = document.createElement('div');
-    card.className = 'glass-card menu-card';
+    card.className = 'kiot-menu-item';
     
     // Tạo ảnh đại diện hoặc lấy ảnh mặc định
     const imgUrl = item.image_url 
@@ -244,23 +253,26 @@ function renderMenu() {
     let actionHtml = '';
     if (cartItem) {
       actionHtml = `
-        <div class="cart-item-qty" style="background: rgba(0,0,0,0.05); border-radius: 0px; padding: 2px 6px;">
-          <button class="qty-btn dec-qty-btn-menu" data-id="${item.id}" style="width: 24px; height: 24px; font-size: 14px; border: none; background: transparent; color: var(--text-primary);">-</button>
-          <span style="font-size: 14px; font-weight: 700; width: 24px; text-align: center; display: inline-block; color: var(--text-primary);">${cartItem.quantity}</span>
-          <button class="qty-btn inc-qty-btn-menu" data-id="${item.id}" style="width: 24px; height: 24px; font-size: 14px; border: none; background: transparent; color: var(--primary);">+</button>
+        <div class="kiot-qty-wrapper" style="border-radius: 20px; border: 1px solid #E85A23;">
+          <button class="kiot-qty-btn dec-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">-</button>
+          <div class="kiot-qty-value" style="color:#E85A23;">${cartItem.quantity}</div>
+          <button class="kiot-qty-btn inc-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">+</button>
         </div>
       `;
     } else {
-      actionHtml = `<button class="btn btn-primary btn-sm add-to-cart-btn" data-id="${item.id}">+ Thêm</button>`;
+      actionHtml = `<button class="kiot-add-btn add-to-cart-btn" data-id="${item.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>`;
     }
 
     card.innerHTML = `
-      <img src="${imgUrl}" alt="${item.name}" class="menu-card-image" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
-      <h3 class="menu-card-title">${item.name}</h3>
-      <p class="menu-card-desc">${item.description || 'Món ăn đậm đà hương vị, chất lượng chuẩn nhà hàng.'}</p>
-      <div class="menu-card-footer">
-        <span class="menu-card-price">${formatPrice(item.price)}</span>
-        ${actionHtml}
+      <img src="${imgUrl}" alt="${item.name}" class="kiot-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
+      <div class="kiot-item-info">
+        <div>
+          <div class="kiot-item-name">${item.name}</div>
+        </div>
+        <div class="kiot-item-actions" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
+          <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
+          ${actionHtml}
+        </div>
       </div>
     `;
     menuItemsGrid.appendChild(card);
@@ -269,7 +281,7 @@ function renderMenu() {
   // Gán sự kiện cho các nút thêm món
   document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseInt(e.target.getAttribute('data-id'));
+      const id = parseInt(e.currentTarget.getAttribute('data-id'));
       addToCart(id);
     });
   });
@@ -364,27 +376,40 @@ function updateCartUi() {
 function renderCartModal() {
   modalCartItems.innerHTML = '';
   
+  const count = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+  const total = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  
+  document.getElementById('cart-total-items-count').textContent = count;
+  document.getElementById('cart-footer-count').textContent = count;
+  modalCartTotalPrice.textContent = formatPrice(total);
+
   if (state.cart.length === 0) {
     modalCartItems.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 24px 0;">Giỏ hàng đang trống.</p>`;
-    modalCartTotalPrice.textContent = formatPrice(0);
     return;
   }
 
-  const total = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  modalCartTotalPrice.textContent = formatPrice(total);
-
   state.cart.forEach(item => {
+    // Get image from state.menu
+    const menuItem = state.menu.find(m => m.id === item.id);
+    const imgUrl = menuItem && menuItem.image_url 
+      ? (menuItem.image_url.startsWith('http') ? menuItem.image_url : `/assets/${menuItem.image_url}`) 
+      : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
+
     const div = document.createElement('div');
-    div.className = 'cart-item';
+    div.className = 'kiot-cart-item';
     div.innerHTML = `
-      <div class="cart-item-info">
-        <h4>${item.name}</h4>
-        <span>${formatPrice(item.price)}</span>
+      <img src="${imgUrl}" class="kiot-cart-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
+      <div class="kiot-cart-item-info">
+        <div class="kiot-cart-item-name">${item.name}</div>
+        <div class="kiot-cart-item-price">${formatPrice(item.price)}</div>
       </div>
-      <div class="cart-item-qty">
-        <button class="qty-btn dec-qty-btn" data-id="${item.id}">-</button>
-        <span>${item.quantity}</span>
-        <button class="qty-btn inc-qty-btn" data-id="${item.id}">+</button>
+      <div class="kiot-cart-item-actions">
+        <button class="kiot-more-btn">...</button>
+        <div class="kiot-modal-qty">
+          <button class="kiot-modal-qty-btn dec-qty-btn" data-id="${item.id}">-</button>
+          <span class="kiot-modal-qty-value">${item.quantity}</span>
+          <button class="kiot-modal-qty-btn inc-qty-btn" data-id="${item.id}">+</button>
+        </div>
       </div>
     `;
     modalCartItems.appendChild(div);
@@ -401,48 +426,13 @@ function renderCartModal() {
 
 // RENDER ACTIVE ORDERS AND STATUS ON TIMELINE
 function renderActiveOrder() {
-  const activeOrderTracking = document.getElementById('active-order-tracking');
-  const trackingItemsContainer = document.getElementById('tracking-items-container');
-  const orderStatusBadge = document.getElementById('order-status-badge');
-
-  if (!state.activeOrder || !state.activeOrder.items || state.activeOrder.items.length === 0) {
-    activeOrderTracking.style.display = 'none';
-    return;
+  // Refresh the ordered items modal if it's currently open
+  const orderedModal = document.getElementById('ordered-items-modal');
+  if (orderedModal && orderedModal.style.display === 'flex') {
+    openOrderedItems();
   }
-
-  activeOrderTracking.style.display = 'block';
-  trackingItemsContainer.innerHTML = '';
-
-  // Phân loại tổng đơn
-  const totalItemsCount = state.activeOrder.items.reduce((sum, i) => sum + i.quantity, 0);
-  const doneItemsCount = state.activeOrder.items.filter(i => i.status === 'done').reduce((sum, i) => sum + i.quantity, 0);
-
-  orderStatusBadge.textContent = `${doneItemsCount}/${totalItemsCount} Đã xong`;
-  if (doneItemsCount === totalItemsCount) {
-    orderStatusBadge.className = 'status-badge success';
-    orderStatusBadge.innerHTML = `<span class="status-dot"></span> Đã phục vụ đủ`;
-  } else {
-    orderStatusBadge.className = 'status-badge serving';
-    orderStatusBadge.innerHTML = `<span class="status-dot ping"></span> Đang nấu (${doneItemsCount}/${totalItemsCount})`;
-  }
-
-  state.activeOrder.items.forEach(item => {
-    const div = document.createElement('div');
-    div.className = `tracking-item ${item.status === 'done' ? 'done' : ''}`;
-    
-    const statusText = item.status === 'cooking' ? 'Đang chế biến' : 'Hoàn thành';
-    
-    div.innerHTML = `
-      <div>
-        <span class="tracking-item-name">${item.name}</span>
-        <span class="tracking-item-qty">x${item.quantity}</span>
-      </div>
-      <span class="tracking-item-status ${item.status}">${statusText}</span>
-    `;
-    trackingItemsContainer.appendChild(div);
-  });
-
-  // Enable/disable nút checkout tương ứng
+  
+  // Update button states if needed
   updateCartUi();
 }
 
@@ -458,29 +448,55 @@ function showPaymentOverlay() {
 function setupEventListeners() {
   // Category tabs click
   categoriesList.addEventListener('click', (e) => {
-    if (e.target.classList.contains('category-tab')) {
-      document.querySelectorAll('.category-tab').forEach(tab => tab.classList.remove('active'));
-      e.target.classList.add('active');
-      state.selectedCategory = e.target.getAttribute('data-category');
+    const target = e.target.closest('.kiot-category-tab');
+    if (target && target.hasAttribute('data-category')) {
+      document.querySelectorAll('.kiot-category-tab').forEach(tab => tab.classList.remove('active'));
+      target.classList.add('active');
+      state.selectedCategory = target.getAttribute('data-category');
+      
+      const groupTitle = document.getElementById('kiot-group-title');
+      if (groupTitle) {
+        groupTitle.textContent = target.textContent.toUpperCase();
+      }
+
       renderMenu();
     }
   });
 
+  // Thêm sự kiện đếm ký tự cho ghi chú
+  const noteInput = document.getElementById('cart-note-input');
+  const noteLength = document.getElementById('cart-note-length');
+  if (noteInput && noteLength) {
+    noteInput.addEventListener('input', () => {
+      noteLength.textContent = noteInput.value.length;
+    });
+  }
+
   // Giỏ hàng buttons
   openCartCheckoutBtn.addEventListener('click', () => {
     renderCartModal();
-    cartModal.classList.add('open');
+    cartModal.style.display = 'flex';
   });
 
   closeCartBtn.addEventListener('click', () => {
-    cartModal.classList.remove('open');
+    cartModal.style.display = 'none';
   });
 
-  clearCartBtn.addEventListener('click', () => {
-    if (confirm('Bạn muốn xoá toàn bộ giỏ hàng?')) {
-      clearCart();
-    }
-  });
+  const addMoreBtn = document.getElementById('add-more-btn');
+  if (addMoreBtn) {
+    addMoreBtn.addEventListener('click', () => {
+      cartModal.style.display = 'none';
+    });
+  }
+
+  const clearCartBtnEl = document.getElementById('clear-cart-btn');
+  if (clearCartBtnEl) {
+    clearCartBtnEl.addEventListener('click', () => {
+      if (confirm('Bạn muốn xoá toàn bộ giỏ hàng?')) {
+        clearCart();
+      }
+    });
+  }
 
   // Confirm đặt món (Gửi lên Server)
   confirmOrderBtn.addEventListener('click', async () => {
@@ -507,11 +523,40 @@ function setupEventListeners() {
       
       // Xoá giỏ hàng sau khi đặt thành công
       state.cart = [];
+      if (noteInput) noteInput.value = '';
+      if (noteLength) noteLength.textContent = '0';
       updateCartUi();
-      cartModal.classList.remove('open');
+      cartModal.style.display = 'none';
       renderActiveOrder();
       
-      showToast('Đã gửi món vào bếp chế biến thành công!', 'success');
+      // Hiển thị success modal thay vì toast
+      const successModal = document.getElementById('success-modal');
+      const successBtn = document.getElementById('success-home-btn');
+      
+      if (successModal && successBtn) {
+        successModal.style.display = 'flex';
+        
+        let timeLeft = 3;
+        successBtn.textContent = `Về trang chủ (${timeLeft}s)`;
+        
+        const timer = setInterval(() => {
+          timeLeft--;
+          successBtn.textContent = `Về trang chủ (${timeLeft}s)`;
+          
+          if (timeLeft <= 0) {
+            clearInterval(timer);
+            successModal.style.display = 'none';
+          }
+        }, 1000);
+        
+        // Cho phép bấm đóng ngay lập tức
+        successBtn.onclick = () => {
+          clearInterval(timer);
+          successModal.style.display = 'none';
+        };
+      } else {
+        showToast('Đã gửi món vào bếp chế biến thành công!', 'success');
+      }
     } catch (err) {
       console.error(err);
       showToast('Đặt món thất bại. Vui lòng thử lại!', 'error');
@@ -551,4 +596,165 @@ function setupEventListeners() {
       callCheckoutBtn.removeAttribute('disabled');
     }
   });
+}
+
+// SETUP NEW MODALS (Search, Call Staff, Ordered Items)
+function setupNewModalsEvents() {
+  // Search
+  const searchBtn = document.querySelector('.kiot-search-btn');
+  const searchModal = document.getElementById('search-modal');
+  const closeSearchBtn = document.getElementById('close-search-btn');
+  const searchInput = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results-list');
+
+  if (searchBtn && searchModal) {
+    searchBtn.addEventListener('click', () => {
+      searchModal.style.display = 'flex';
+      searchInput.value = '';
+      searchResults.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 24px;">Nhập từ khoá để tìm món</p>';
+      setTimeout(() => searchInput.focus(), 100);
+    });
+    closeSearchBtn.addEventListener('click', () => {
+      searchModal.style.display = 'none';
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      if (!query) {
+        searchResults.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 24px;">Nhập từ khoá để tìm món</p>';
+        return;
+      }
+      const results = state.menu.filter(m => m.name.toLowerCase().includes(query));
+      if (results.length === 0) {
+        searchResults.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 24px;">Không tìm thấy món ăn nào.</p>';
+        return;
+      }
+
+      searchResults.innerHTML = '';
+      results.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'kiot-menu-item';
+        div.style.marginBottom = '12px';
+        const imgUrl = item.image_url ? (item.image_url.startsWith('http') ? item.image_url : `/assets/${item.image_url}`) : '';
+        div.innerHTML = `
+          <img src="${imgUrl}" class="kiot-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
+          <div class="kiot-item-info">
+            <div class="kiot-item-name">${item.name}</div>
+            <div class="kiot-item-actions" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
+              <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
+              <button class="kiot-add-btn" onclick="addToCart(${item.id}); document.getElementById('search-modal').style.display='none';"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+            </div>
+          </div>
+        `;
+        searchResults.appendChild(div);
+      });
+    });
+  }
+
+  // Call Staff
+  const callBtns = document.querySelectorAll('.kiot-action-btn');
+  const callStaffModal = document.getElementById('call-staff-modal');
+  const closeCallBtn = document.getElementById('close-call-staff-btn');
+  const submitCallBtn = document.getElementById('submit-call-staff-btn');
+  const callNote = document.getElementById('call-staff-note');
+  const callNoteLen = document.getElementById('call-staff-note-length');
+  
+  if (callBtns.length > 0 && callStaffModal) {
+    callBtns[0].addEventListener('click', (e) => {
+      // Vì "Món đã gọi" cũng nằm trong .kiot-action-btn nên cần lọc
+      if (e.target.closest('span') && e.target.closest('span').textContent.includes('Gọi nhân viên')) {
+        callStaffModal.style.display = 'block';
+        if (callNote) callNote.value = '';
+        if (callNoteLen) callNoteLen.textContent = '0';
+      } else if (e.target.closest('span') && e.target.closest('span').textContent.includes('Món đã gọi')) {
+        openOrderedItems();
+      }
+    });
+    if (closeCallBtn) {
+      closeCallBtn.addEventListener('click', () => callStaffModal.style.display = 'none');
+    }
+    if (callNote) {
+      callNote.addEventListener('input', () => {
+        if (callNoteLen) callNoteLen.textContent = callNote.value.length;
+      });
+    }
+    if (submitCallBtn) {
+      submitCallBtn.addEventListener('click', () => {
+        callStaffModal.style.display = 'none';
+        showToast('Đã gửi yêu cầu đến nhân viên thành công!', 'success');
+      });
+    }
+  }
+
+  // Ordered Items
+  const orderedModal = document.getElementById('ordered-items-modal');
+  const closeOrderedBtn = document.getElementById('close-ordered-btn');
+  if (closeOrderedBtn) {
+    closeOrderedBtn.addEventListener('click', () => {
+      orderedModal.style.display = 'none';
+    });
+  }
+}
+
+function openOrderedItems() {
+  const modal = document.getElementById('ordered-items-modal');
+  const body = document.getElementById('ordered-items-body');
+  const countEl = document.getElementById('ordered-total-count');
+  const totalEl = document.getElementById('ordered-total-price');
+
+  if (!modal || !body) return;
+
+  if (!state.activeOrder || !state.activeOrder.items || state.activeOrder.items.length === 0) {
+    body.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 24px;">Bạn chưa gọi món nào.</p>';
+    if (countEl) countEl.textContent = '0';
+    if (totalEl) totalEl.textContent = '0đ';
+    modal.style.display = 'flex';
+    return;
+  }
+
+  // Calculate totals
+  const totalItems = state.activeOrder.items.reduce((s, i) => s + i.quantity, 0);
+  const totalPrice = state.activeOrder.total_amount;
+  if (countEl) countEl.textContent = totalItems;
+  if (totalEl) totalEl.textContent = formatPrice(totalPrice);
+
+  // Parse time
+  const timeStr = new Date(state.activeOrder.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+  let itemsHtml = '';
+  state.activeOrder.items.forEach(item => {
+    let badgeClass = 'kiot-badge-pending';
+    let badgeText = 'Chờ xác nhận';
+    if (item.status === 'cooking') {
+      badgeClass = 'kiot-badge-cooking';
+      badgeText = 'Đang chế biến';
+    } else if (item.status === 'done') {
+      badgeClass = 'kiot-badge-done';
+      badgeText = 'Đã phục vụ';
+    }
+
+    itemsHtml += `
+      <div class="kiot-order-item-row">
+        <div style="font-size: 14px; font-weight: 600; width: 24px;">${item.quantity}x</div>
+        <div class="kiot-order-item-name">
+          ${item.name}
+        </div>
+        <div class="kiot-order-badge ${badgeClass}">${badgeText}</div>
+      </div>
+    `;
+  });
+
+  body.innerHTML = `
+    <div class="kiot-order-group">
+      <div class="kiot-order-group-header">
+        <span>${timeStr} | ${totalItems} món</span>
+        <span>${formatPrice(totalPrice)}</span>
+      </div>
+      <div class="kiot-order-group-items">
+        ${itemsHtml}
+      </div>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
 }
