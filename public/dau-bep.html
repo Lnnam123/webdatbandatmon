@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Màn hình Đầu bếp - Bếp chế biến</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .chef-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .chef-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <a href="#" class="logo">
+      <span>Glow</span>Bites <span>- Khu Vực Bếp</span>
+    </a>
+    <div class="header-status">
+      <span class="status-badge available" id="connection-status">
+        <span class="status-dot ping"></span> Hệ thống hoạt động
+      </span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main>
+    <div class="chef-column-title">
+      🍳 Món ăn đang chờ chế biến (<span id="items-count">0</span>)
+    </div>
+    
+    <div class="chef-grid" id="chef-items-grid">
+      <!-- Món ăn cần chế biến sẽ render ở đây -->
+    </div>
+  </main>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast-notification">
+    <span id="toast-message">Thông báo!</span>
+  </div>
+
+  <script>
+    let chefItems = [];
+    let socket = null;
+
+    const chefItemsGrid = document.getElementById('chef-items-grid');
+    const itemsCount = document.getElementById('items-count');
+    const connectionStatus = document.getElementById('connection-status');
+    const toastNotification = document.getElementById('toast-notification');
+    const toastMessage = document.getElementById('toast-message');
+
+    // Show Notification
+    function showToast(message, isSuccess = true) {
+      toastMessage.textContent = message;
+      toastNotification.className = 'toast show';
+      if (isSuccess) toastNotification.classList.add('toast-success');
+      setTimeout(() => {
+        toastNotification.className = 'toast';
+      }, 3000);
+    }
+
+    // Format Time Elapsed
+    function formatTimeElapsed(dateStr) {
+      const diffMs = new Date() - new Date(dateStr);
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Vừa xong';
+      return `${diffMins} phút trước`;
+    }
+
+    // Load active items for chef
+    async function loadChefItems() {
+      try {
+        const res = await fetch('/api/chef/items');
+        if (!res.ok) throw new Error('Lỗi fetch items');
+        chefItems = await res.json();
+        renderChefItems();
+      } catch (err) {
+        console.error(err);
+        showToast('Không thể tải danh sách món ăn!', false);
+      }
+    }
+
+    // Render Chef Items
+    function renderChefItems() {
+      chefItemsGrid.innerHTML = '';
+      itemsCount.textContent = chefItems.length;
+
+      if (chefItems.length === 0) {
+        chefItemsGrid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px;" class="glass-card">
+            <div style="font-size: 48px; margin-bottom: 16px;">✨</div>
+            <h3>Bếp đang trống!</h3>
+            <p style="color: var(--text-secondary); margin-top: 8px;">Hiện tại không có món ăn nào cần chế biến.</p>
+          </div>
+        `;
+        return;
+      }
+
+      chefItems.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'glass-card chef-card';
+        card.innerHTML = `
+          <div class="chef-item-info">
+            <div style="margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+              <span class="table-badge">${item.table_number}</span>
+              <span class="time-elapsed" data-time="${item.created_at}">${formatTimeElapsed(item.created_at)}</span>
+            </div>
+            <h4 style="font-size: 18px; font-weight:800;">${item.name}</h4>
+            <div style="font-size: 15px; color: var(--primary); font-weight:800; margin-top: 6px;">Số lượng: x${item.quantity}</div>
+          </div>
+          <div>
+            <button class="btn btn-success btn-complete" style="width: 100%;" 
+              data-id="${item.order_item_id}" 
+              data-table="${item.table_id}" 
+              data-session="${item.session_token}">
+              ✓ Hoàn thành chế biến
+            </button>
+          </div>
+        `;
+        chefItemsGrid.appendChild(card);
+      });
+
+      // Bind complete button event
+      document.querySelectorAll('.btn-complete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const itemId = btn.getAttribute('data-id');
+          const tableId = btn.getAttribute('data-table');
+          const sessionToken = btn.getAttribute('data-session');
+          
+          btn.setAttribute('disabled', 'true');
+          btn.textContent = 'Đang cập nhật...';
+          await completeChefItem(itemId, tableId, sessionToken);
+        });
+      });
+    }
+
+    // Complete Chef Item
+    async function completeChefItem(orderItemId, tableId, sessionToken) {
+      try {
+        const res = await fetch('/api/chef/items/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_item_id: parseInt(orderItemId),
+            table_id: parseInt(tableId),
+            session_token: sessionToken
+          })
+        });
+
+        if (!res.ok) throw new Error('Lỗi cập nhật món ăn');
+        showToast('Đã đánh dấu món ăn hoàn thành!', true);
+        
+        // Cập nhật state cục bộ
+        chefItems = chefItems.filter(i => i.order_item_id !== parseInt(orderItemId));
+        renderChefItems();
+      } catch (err) {
+        console.error(err);
+        showToast('Cập nhật thất bại. Vui lòng thử lại!', false);
+        loadChefItems();
+      }
+    }
+
+    // Init WebSocket for Chef
+    function initWebSocket() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}`;
+      
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log('Chef connected to WS');
+        socket.send(JSON.stringify({
+          type: 'register',
+          role: 'chef'
+        }));
+        connectionStatus.className = 'status-badge available';
+        connectionStatus.innerHTML = '<span class="status-dot ping"></span> Bếp Trực Tuyến';
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Chef WS Message:', data);
+
+        if (data.type === 'new_order' || data.type === 'chef_item_completed') {
+          loadChefItems();
+          if (data.type === 'new_order') {
+            showToast('Có món ăn mới được gọi! Hãy chuẩn bị.', true);
+            // Phát âm thanh báo hiệu nếu được trình duyệt cho phép
+            try {
+              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+              const oscillator = audioCtx.createOscillator();
+              oscillator.type = 'sine';
+              oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+              oscillator.connect(audioCtx.destination);
+              oscillator.start();
+              oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch(e) {}
+          }
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('Chef WS closed. Reconnecting...');
+        connectionStatus.className = 'status-badge pending_payment';
+        connectionStatus.innerHTML = '<span class="status-dot"></span> Bếp Mất Kết Nối';
+        setTimeout(initWebSocket, 5000);
+      };
+    }
+
+    // Start
+    loadChefItems();
+    initWebSocket();
+
+    // Auto-update times every 30 seconds
+    setInterval(() => {
+      document.querySelectorAll('.time-elapsed').forEach(el => {
+        const dateStr = el.getAttribute('data-time');
+        el.textContent = formatTimeElapsed(dateStr);
+      });
+    }, 30000);
+  </script>
+</body>
+</html>

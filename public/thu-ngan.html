@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Màn hình Thu ngân POS - GlowBites</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <a href="#" class="logo">
+      <span>Glow</span>Bites <span>- POS Thu Ngân</span>
+    </a>
+    <div class="header-status">
+      <span class="status-badge available" id="connection-status">
+        <span class="status-dot ping"></span> Hệ thống POS sẵn sàng
+      </span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main>
+    <div class="chef-column-title" style="margin-bottom: 24px;">
+      🖥️ Sơ đồ bàn ăn và Trạng thái phục vụ
+    </div>
+
+    <!-- Table Grid -->
+    <div class="cashier-grid" id="tables-grid">
+      <!-- Bàn ăn sẽ được render ở đây -->
+    </div>
+  </main>
+
+  <!-- Bill details Modal -->
+  <div class="modal-overlay" id="bill-modal">
+    <div class="modal-container" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 id="bill-modal-title">Hoá đơn chi tiết - Bàn XX</h3>
+        <button class="qty-btn" id="close-bill-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="font-weight: 800; color: var(--primary);">GLOWBITES RESTAURANT</h2>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Đ/C: 123 Đường Bàn Ăn, Quận 1, TP. HCM</p>
+          <p style="font-size: 12px; color: var(--text-secondary);" id="bill-timestamp">Thời gian: --/--/---- --:--</p>
+        </div>
+
+        <div class="bill-details" id="bill-items-list">
+          <!-- Chi tiết món ăn hoá đơn -->
+        </div>
+
+        <div class="bill-row total">
+          <span>Tổng thanh toán</span>
+          <span id="bill-total-price">0đ</span>
+        </div>
+      </div>
+      <div class="modal-footer" style="flex-direction: column; gap: 10px;">
+        <button class="btn btn-outline" style="width: 100%;" id="print-bill-btn">
+          🖨️ In hoá đơn giấy (Giả lập)
+        </button>
+        <button class="btn btn-primary" style="width: 100%;" id="confirm-payment-btn">
+          💰 Xác nhận đã thu tiền
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast-notification">
+    <span id="toast-message">Thông báo!</span>
+  </div>
+
+  <script>
+    let tables = [];
+    let selectedTable = null;
+    let socket = null;
+
+    const tablesGrid = document.getElementById('tables-grid');
+    const connectionStatus = document.getElementById('connection-status');
+    const billModal = document.getElementById('bill-modal');
+    const closeBillBtn = document.getElementById('close-bill-btn');
+    const billModalTitle = document.getElementById('bill-modal-title');
+    const billItemsList = document.getElementById('bill-items-list');
+    const billTotalPrice = document.getElementById('bill-total-price');
+    const billTimestamp = document.getElementById('bill-timestamp');
+    const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
+    const printBillBtn = document.getElementById('print-bill-btn');
+    const toastNotification = document.getElementById('toast-notification');
+    const toastMessage = document.getElementById('toast-message');
+
+    // Format Price
+    function formatPrice(number) {
+      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number || 0);
+    }
+
+    // Show Notification
+    function showToast(message, isSuccess = true) {
+      toastMessage.textContent = message;
+      toastNotification.className = 'toast show';
+      if (isSuccess) toastNotification.classList.add('toast-success');
+      setTimeout(() => {
+        toastNotification.className = 'toast';
+      }, 3000);
+    }
+
+    // Load cashier tables
+    async function loadTables() {
+      try {
+        const res = await fetch('/api/cashier/tables');
+        if (!res.ok) throw new Error('Lỗi fetch tables');
+        tables = await res.json();
+        renderTables();
+        
+        // Cập nhật lại hóa đơn nếu đang mở
+        if (selectedTable) {
+          const updatedTable = tables.find(t => t.id === selectedTable.id);
+          if (updatedTable) {
+            selectedTable = updatedTable;
+            updateBillModalContent();
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Không thể tải sơ đồ bàn ăn!', false);
+      }
+    }
+
+    // Render Tables
+    function renderTables() {
+      tablesGrid.innerHTML = '';
+
+      tables.forEach(t => {
+        const card = document.createElement('div');
+        card.className = `table-card ${t.status}`;
+        
+        let statusText = 'Trống';
+        let amountText = '';
+        
+        if (t.status === 'serving') {
+          statusText = 'Đang phục vụ';
+          if (t.active_order) {
+            amountText = formatPrice(t.active_order.total_amount);
+          }
+        } else if (t.status === 'pending_payment') {
+          statusText = '⚠️ Chờ thanh toán';
+          if (t.active_order) {
+            amountText = formatPrice(t.active_order.total_amount);
+          }
+        }
+
+        card.innerHTML = `
+          <div class="table-card-number">${t.table_number}</div>
+          <div class="table-card-status">${statusText}</div>
+          <div class="table-card-amount">${amountText}</div>
+        `;
+
+        card.addEventListener('click', () => {
+          openBillModal(t);
+        });
+
+        tablesGrid.appendChild(card);
+      });
+    }
+
+    // Open Bill Modal
+    function openBillModal(table) {
+      selectedTable = table;
+      
+      if (table.status === 'available') {
+        showToast(`Bàn trống. Chưa có đơn hàng để xem hoá đơn!`, false);
+        return;
+      }
+
+      updateBillModalContent();
+      billModal.classList.add('open');
+    }
+
+    // Update Content inside Bill Modal
+    function updateBillModalContent() {
+      const table = selectedTable;
+      billModalTitle.textContent = `Hoá đơn chi tiết - ${table.table_number}`;
+      
+      const order = table.active_order;
+      if (!order) {
+        billItemsList.innerHTML = '<p style="text-align:center; color:var(--text-secondary);">Không tìm thấy thông tin đơn hàng.</p>';
+        billTotalPrice.textContent = formatPrice(0);
+        confirmPaymentBtn.setAttribute('disabled', 'true');
+        return;
+      }
+
+      billTimestamp.textContent = `Thời gian: ${new Date(order.created_at).toLocaleString('vi-VN')}`;
+
+      billItemsList.innerHTML = '';
+      order.items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'bill-row';
+        row.innerHTML = `
+          <div>
+            <strong>${item.name}</strong> 
+            <span style="color:var(--text-secondary); margin-left:6px;">x${item.quantity}</span>
+            <span style="font-size: 11px; display:block; color:var(--text-secondary);">${item.status === 'done' ? '✓ Đã xong' : '⏳ Đang nấu'}</span>
+          </div>
+          <span>${formatPrice(item.price * item.quantity)}</span>
+        `;
+        billItemsList.appendChild(row);
+      });
+
+      billTotalPrice.textContent = formatPrice(order.total_amount);
+
+      // Cho phép thanh toán
+      confirmPaymentBtn.removeAttribute('disabled');
+      if (table.status === 'pending_payment') {
+        confirmPaymentBtn.className = 'btn btn-primary';
+        confirmPaymentBtn.textContent = '💰 Xác nhận thanh toán (Khách chờ)';
+      } else {
+        confirmPaymentBtn.className = 'btn btn-outline';
+        confirmPaymentBtn.textContent = '💰 Thanh toán ngay';
+      }
+    }
+
+    // Init WebSocket for POS Cashier
+    function initWebSocket() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}`;
+      
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log('Cashier POS connected to WS');
+        socket.send(JSON.stringify({
+          type: 'register',
+          role: 'cashier'
+        }));
+        connectionStatus.className = 'status-badge available';
+        connectionStatus.innerHTML = '<span class="status-dot ping"></span> POS Trực Tuyến';
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('POS WS Message:', data);
+
+        if (data.type === 'table_status_changed' || data.type === 'checkout_request') {
+          loadTables();
+          
+          if (data.type === 'checkout_request') {
+            const table = tables.find(t => t.id === parseInt(data.table_id));
+            const tableName = table ? table.table_number : `Bàn ID ${data.table_id}`;
+            showToast(`🛎️ ${tableName} yêu cầu thanh toán hóa đơn!`, true);
+            
+            // Âm thanh thông báo
+            try {
+              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+              const oscillator = audioCtx.createOscillator();
+              oscillator.type = 'triangle';
+              oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
+              oscillator.connect(audioCtx.destination);
+              oscillator.start();
+              oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch(e) {}
+          }
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('POS WS closed. Reconnecting...');
+        connectionStatus.className = 'status-badge pending_payment';
+        connectionStatus.innerHTML = '<span class="status-dot"></span> POS Mất Kết Nối';
+        setTimeout(initWebSocket, 5000);
+      };
+    }
+
+    // Bind UI actions
+    closeBillBtn.addEventListener('click', () => {
+      billModal.classList.remove('open');
+      selectedTable = null;
+    });
+
+    // Xác nhận đã thu tiền
+    confirmPaymentBtn.addEventListener('click', async () => {
+      if (!selectedTable) return;
+      
+      confirmPaymentBtn.setAttribute('disabled', 'true');
+      confirmPaymentBtn.textContent = 'Đang thanh toán...';
+
+      try {
+        const res = await fetch('/api/payment/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: selectedTable.id })
+        });
+
+        if (!res.ok) throw new Error('Lỗi thanh toán');
+        
+        showToast(`Đã thanh toán và giải phóng ${selectedTable.table_number}!`, true);
+        billModal.classList.remove('open');
+        selectedTable = null;
+        loadTables();
+      } catch (err) {
+        console.error(err);
+        showToast('Xử lý thanh toán thất bại!', false);
+        confirmPaymentBtn.removeAttribute('disabled');
+      }
+    });
+
+    // In hóa đơn (Giả lập)
+    printBillBtn.addEventListener('click', () => {
+      if (!selectedTable || !selectedTable.active_order) return;
+      
+      const order = selectedTable.active_order;
+      let billText = `GLOWBITES RESTAURANT\n--------------------------\n`;
+      billText += `Bàn: ${selectedTable.table_number}\n`;
+      billText += `Ngày: ${new Date(order.created_at).toLocaleString('vi-VN')}\n`;
+      billText += `--------------------------\n`;
+      
+      order.items.forEach(i => {
+        billText += `${i.name} x${i.quantity}\n`;
+        billText += `                 ${formatPrice(i.price * i.quantity)}\n`;
+      });
+      billText += `--------------------------\n`;
+      billText += `Tổng cộng:       ${formatPrice(order.total_amount)}\n`;
+      billText += `--------------------------\n`;
+      billText += `XIN CẢM ƠN QUÝ KHÁCH!\n`;
+
+      console.log(billText);
+      alert("Đang gửi lệnh in hóa đơn giấy...\n\n" + billText);
+    });
+
+    // Start
+    loadTables();
+    initWebSocket();
+  </script>
+</body>
+</html>

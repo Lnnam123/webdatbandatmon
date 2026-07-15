@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thực đơn gọi món - QR Order</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <a href="#" class="logo">
+      <span>Glow</span>Bites
+    </a>
+    <div class="header-status" id="header-status-area" style="display: none;">
+      <span class="status-badge" id="table-number-badge">
+        <span class="status-dot"></span> Bàn: Loading...
+      </span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main id="main-content">
+    
+    <!-- Màn hình chờ quét QR (Nếu không có qr_token trên URL) -->
+    <div id="welcome-screen" class="glass-card" style="text-align: center; max-width: 500px; margin: 40px auto;">
+      <div style="margin-bottom: 20px; color: var(--primary);">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+      </div>
+      <h2 style="margin-bottom: 12px; font-weight: 800;">Chào mừng quý khách!</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; line-height: 1.6;">
+        Vui lòng quét mã QR tại bàn để bắt đầu chọn món và trải nghiệm dịch vụ tự động của chúng tôi.
+      </p>
+      
+      <div style="border-top: 1px solid var(--border-color); padding-top: 24px;">
+        <h4 style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--primary);">
+          Giả lập quét mã QR (Chọn bàn để thử nghiệm):
+        </h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px;" id="simulated-tables">
+          <!-- Sẽ được điền bằng Javascript -->
+          <p style="font-size: 13px; color: var(--text-secondary);">Đang tải sơ đồ bàn ăn...</p>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid var(--border-color); padding-top: 24px; margin-top: 32px;">
+        <h4 style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--primary);">
+          Dành cho nhân viên:
+        </h4>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <a href="thu-ngan.html" class="btn btn-outline" style="flex: 1; color: var(--primary);"><svg style="margin-right:8px;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Thu ngân</a>
+          <a href="dau-bep.html" class="btn btn-outline" style="flex: 1; color: var(--primary);"><svg style="margin-right:8px;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"></path><line x1="6" y1="17" x2="18" y2="17"></line></svg> Đầu bếp</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Màn hình đặt món (Chỉ hiển thị khi đã verify QR) -->
+    <div id="ordering-screen" style="display: none;">
+      
+      <!-- Banner giới thiệu bàn ăn -->
+      <div class="glass-card tracking-card order-tracking" id="active-order-tracking" style="display: none; margin-bottom: 24px;">
+        <div class="tracking-title">
+          <span>Tiến trình phục vụ</span>
+          <span style="font-size: 13px; color: var(--primary); font-weight: 800;" id="order-status-badge">Đang chế biến</span>
+        </div>
+        <div class="tracking-items" id="tracking-items-container">
+          <!-- Món đang nấu sẽ render ở đây -->
+        </div>
+      </div>
+
+      <!-- Categories Navigation -->
+      <div class="categories-container" id="categories-list">
+        <button class="category-tab active" data-category="all">Tất cả</button>
+        <button class="category-tab" data-category="appetizer">Món khai vị</button>
+        <button class="category-tab" data-category="main">Món chính</button>
+        <button class="category-tab" data-category="dessert">Tráng miệng</button>
+        <button class="category-tab" data-category="drink">Đồ uống</button>
+      </div>
+
+      <!-- Menu Items Grid -->
+      <div class="menu-grid" id="menu-items-grid">
+        <!-- Món ăn tự động render -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Màn hình khoá chờ thanh toán -->
+  <div id="payment-overlay" class="modal-overlay">
+    <div class="glass-card" style="width: 90%; max-width: 450px; padding: 40px 24px; text-align: center; margin: auto; border-radius: var(--radius-lg);">
+      <div style="margin-bottom: 20px; color: var(--primary); animation: pulseWarning 1.5s infinite;">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      </div>
+      <h2 style="margin-bottom: 12px; font-weight: 800;">Đang chờ thanh toán</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; line-height: 1.6;" id="payment-overlay-msg">
+        Yêu cầu thanh toán của quý khách đã được gửi đến quầy thu ngân. Vui lòng thanh toán tại quầy. Xin cảm ơn quý khách!
+      </p>
+      <div id="payment-overlay-total" style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 24px;">
+        Tổng tiền: 0đ
+      </div>
+      <span class="status-badge pending_payment" style="font-size: 14px; padding: 8px 16px;">
+        <span class="status-dot ping"></span> Nhân viên đang kiểm tra...
+      </span>
+    </div>
+  </div>
+
+  <!-- Bottom Action Bar (Floating Cart) -->
+  <div class="bottom-bar" id="cart-bottom-bar" style="display: none;">
+    <div class="cart-summary" id="view-cart-btn" style="cursor: pointer;">
+      <div class="cart-count" id="cart-item-count">0</div>
+      <div>
+        <div style="font-size: 12px; color: var(--text-secondary);">Giỏ hàng tạm tính</div>
+        <div class="cart-price-total" id="cart-total-price">0đ</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn btn-outline" id="call-checkout-btn" disabled>Yêu cầu thanh toán</button>
+      <button class="btn btn-primary" id="open-cart-checkout-btn" disabled>Xem giỏ hàng</button>
+    </div>
+  </div>
+
+  <!-- Cart Modal Drawer -->
+  <div class="modal-overlay" id="cart-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Giỏ hàng của bạn</h3>
+        <button class="qty-btn" id="close-cart-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="cart-items-list" id="modal-cart-items">
+          <!-- Chi tiết giỏ hàng -->
+        </div>
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; font-size: 16px;">Tổng cộng:</span>
+          <span id="modal-cart-total-price" style="font-size: 20px; font-weight: 800; color: var(--primary);">0đ</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" style="flex: 1;" id="clear-cart-btn">Xoá giỏ hàng</button>
+        <button class="btn btn-primary" style="flex: 2;" id="confirm-order-btn">Xác nhận đặt món</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast-notification">
+    <span id="toast-message">Thông báo!</span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
