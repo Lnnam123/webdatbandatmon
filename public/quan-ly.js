@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function formatPrice(num) {
-  return new Intl.NumberFormat('vi-VN').format(num);
+  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
 function setupTabs() {

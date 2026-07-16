@@ -136,18 +136,14 @@ async function initApp(qrToken) {
       if (catRes.ok) {
         state.categories = await catRes.json();
         if (categoriesList) {
-          categoriesList.innerHTML = `<button class="kiot-category-tab active" data-category="all">Tất cả</button>`;
-          state.categories.forEach(cat => {
+          categoriesList.innerHTML = '';
+          state.categories.forEach((cat, index) => {
             const btn = document.createElement('button');
-            btn.className = 'kiot-category-tab';
+            btn.className = 'kiot-category-tab' + (index === 0 ? ' active' : '');
             btn.setAttribute('data-category', cat.ma_danh_muc);
             btn.textContent = cat.ten_danh_muc;
             categoriesList.appendChild(btn);
           });
-          const toggleBtn = document.createElement('button');
-          toggleBtn.className = 'kiot-category-tab';
-          toggleBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-          categoriesList.appendChild(toggleBtn);
         }
       }
     } catch (e) {
@@ -249,56 +245,73 @@ function initWebSocket() {
 function renderMenu() {
   menuItemsGrid.innerHTML = '';
   
-  const filtered = state.selectedCategory === 'all'
-    ? state.menu
-    : state.menu.filter(item => item.category === state.selectedCategory);
-
-  const totalMenuItemsLabel = document.getElementById('total-menu-items');
-  if (totalMenuItemsLabel) {
-    totalMenuItemsLabel.textContent = `Tất cả ${filtered.length} món`;
-  }
-
-  if (filtered.length === 0) {
-    menuItemsGrid.innerHTML = `<p style="text-align: center; color: var(--text-secondary); width: 100%;">Danh mục này hiện chưa có món.</p>`;
+  if (state.menu.length === 0) {
+    menuItemsGrid.innerHTML = `<p style="text-align: center; color: var(--text-secondary); width: 100%;">Thực đơn hiện đang trống.</p>`;
     return;
   }
 
-  filtered.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'kiot-menu-item';
+  const totalMenuItemsLabel = document.getElementById('total-menu-items');
+  if (totalMenuItemsLabel) {
+    totalMenuItemsLabel.textContent = `Tất cả ${state.menu.length} món`;
+  }
+
+  state.categories.forEach(cat => {
+    const itemsInCat = state.menu.filter(item => item.category === cat.ma_danh_muc);
+    if (itemsInCat.length === 0) return;
+
+    const section = document.createElement('div');
+    section.className = 'menu-group-section';
+    section.id = `category-section-${cat.ma_danh_muc}`;
     
-    // Tạo ảnh đại diện hoặc lấy ảnh mặc định
-    const imgUrl = item.image_url 
-      ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : `/assets/${item.image_url}`) 
-      : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
-    
-    const cartItem = state.cart.find(c => c.id === item.id);
-    let actionHtml = '';
-    if (cartItem) {
-      actionHtml = `
-        <div class="kiot-qty-wrapper" style="border-radius: 20px; border: 1px solid #E85A23;">
-          <button class="kiot-qty-btn dec-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">-</button>
-          <div class="kiot-qty-value" style="color:#E85A23;">${cartItem.quantity}</div>
-          <button class="kiot-qty-btn inc-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">+</button>
+    const title = document.createElement('div');
+    title.className = 'menu-group-title';
+    title.textContent = cat.ten_danh_muc;
+    section.appendChild(title);
+
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '16px';
+
+    itemsInCat.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'kiot-menu-item';
+      
+      const imgUrl = item.image_url 
+        ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : `/assets/${item.image_url}`) 
+        : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
+      
+      const cartItem = state.cart.find(c => c.id === item.id);
+      let actionHtml = '';
+      if (cartItem) {
+        actionHtml = `
+          <div class="kiot-qty-wrapper" style="border-radius: 20px; border: 1px solid #E85A23;">
+            <button class="kiot-qty-btn dec-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">-</button>
+            <div class="kiot-qty-value" style="color:#E85A23;">${cartItem.quantity}</div>
+            <button class="kiot-qty-btn inc-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">+</button>
+          </div>
+        `;
+      } else {
+        actionHtml = `<button class="kiot-add-btn add-to-cart-btn" data-id="${item.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>`;
+      }
+
+      card.innerHTML = `
+        <img src="${imgUrl}" alt="${item.name}" class="kiot-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
+        <div class="kiot-item-info">
+          <div>
+            <div class="kiot-item-name">${item.name}</div>
+          </div>
+          <div class="kiot-item-actions" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
+            <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
+            ${actionHtml}
+          </div>
         </div>
       `;
-    } else {
-      actionHtml = `<button class="kiot-add-btn add-to-cart-btn" data-id="${item.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>`;
-    }
+      list.appendChild(card);
+    });
 
-    card.innerHTML = `
-      <img src="${imgUrl}" alt="${item.name}" class="kiot-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
-      <div class="kiot-item-info">
-        <div>
-          <div class="kiot-item-name">${item.name}</div>
-        </div>
-        <div class="kiot-item-actions" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
-          <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
-          ${actionHtml}
-        </div>
-      </div>
-    `;
-    menuItemsGrid.appendChild(card);
+    section.appendChild(list);
+    menuItemsGrid.appendChild(section);
   });
 
   // Gán sự kiện cho các nút thêm món
@@ -473,16 +486,46 @@ function setupEventListeners() {
   categoriesList.addEventListener('click', (e) => {
     const target = e.target.closest('.kiot-category-tab');
     if (target && target.hasAttribute('data-category')) {
-      document.querySelectorAll('.kiot-category-tab').forEach(tab => tab.classList.remove('active'));
-      target.classList.add('active');
-      state.selectedCategory = target.getAttribute('data-category');
-      
-      const groupTitle = document.getElementById('kiot-group-title');
-      if (groupTitle) {
-        groupTitle.textContent = target.textContent.toUpperCase();
+      const catId = target.getAttribute('data-category');
+      const section = document.getElementById(`category-section-${catId}`);
+      if (section) {
+        // Offset for the sticky header
+        const y = section.getBoundingClientRect().top + window.scrollY - 60;
+        window.scrollTo({ top: y, behavior: 'smooth' });
       }
+    }
+  });
 
-      renderMenu();
+  // ScrollSpy for categories
+  window.addEventListener('scroll', () => {
+    const sections = document.querySelectorAll('.menu-group-section');
+    let currentId = '';
+    
+    sections.forEach(section => {
+      const sectionTop = section.offsetTop;
+      if (window.scrollY >= sectionTop - 70) {
+        currentId = section.getAttribute('id').replace('category-section-', '');
+      }
+    });
+
+    if (currentId) {
+      const tabs = document.querySelectorAll('.kiot-category-tab');
+      let activeTab = null;
+      tabs.forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.getAttribute('data-category') === currentId) {
+          tab.classList.add('active');
+          activeTab = tab;
+        }
+      });
+      
+      if (activeTab) {
+        // Cuộn ngang thanh danh mục
+        categoriesList.scrollTo({
+          left: activeTab.offsetLeft - categoriesList.clientWidth / 2 + activeTab.clientWidth / 2,
+          behavior: 'smooth'
+        });
+      }
     }
   });
 

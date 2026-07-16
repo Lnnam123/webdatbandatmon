@@ -827,31 +827,50 @@ main {
 /* Kiot Categories */
 .kiot-categories-container {
   display: flex;
-  gap: 8px;
   overflow-x: auto;
-  padding: 4px 0 12px 0;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   scrollbar-width: none;
   border-bottom: 1px solid var(--border-color);
+  background: var(--bg-main);
+  position: sticky;
+  top: 0px;
+  z-index: 50;
 }
 .kiot-categories-container::-webkit-scrollbar {
   display: none;
 }
 
 .kiot-category-tab {
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--border-color);
+  padding: 12px 20px;
+  border: none;
+  border-radius: 0;
+  border-bottom: 3px solid transparent;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+.kiot-category-tab:hover {
+  color: var(--primary);
 }
 .kiot-category-tab.active {
-  border-color: var(--primary);
+  border-bottom: 3px solid var(--primary);
   color: var(--primary);
+}
+
+.menu-group-section {
+  margin-bottom: 32px;
+  scroll-margin-top: 120px;
+}
+.menu-group-title {
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  color: var(--text-primary);
 }
 
 /* Kiot Filter Row */
