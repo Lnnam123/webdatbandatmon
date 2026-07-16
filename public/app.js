@@ -131,6 +131,29 @@ async function initApp(qrToken) {
     state.menu = data.menu;
     state.activeOrder = data.activeOrder;
 
+    try {
+      const catRes = await fetch('/api/categories');
+      if (catRes.ok) {
+        state.categories = await catRes.json();
+        if (categoriesList) {
+          categoriesList.innerHTML = `<button class="kiot-category-tab active" data-category="all">Tất cả</button>`;
+          state.categories.forEach(cat => {
+            const btn = document.createElement('button');
+            btn.className = 'kiot-category-tab';
+            btn.setAttribute('data-category', cat.ma_danh_muc);
+            btn.textContent = cat.ten_danh_muc;
+            categoriesList.appendChild(btn);
+          });
+          const toggleBtn = document.createElement('button');
+          toggleBtn.className = 'kiot-category-tab';
+          toggleBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+          categoriesList.appendChild(toggleBtn);
+        }
+      }
+    } catch (e) {
+      console.error('Không tải được danh mục', e);
+    }
+
     // Lưu session token vào localStorage
     localStorage.setItem('restaurant_session_token', state.table.session_token);
 

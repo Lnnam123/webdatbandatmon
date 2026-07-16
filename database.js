@@ -44,6 +44,27 @@ export async function initDb() {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS danh_muc (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ma_danh_muc VARCHAR(50) UNIQUE NOT NULL,
+        ten_danh_muc VARCHAR(255) NOT NULL
+      )
+    `);
+
+    const [catRows] = await pool.query('SELECT COUNT(*) as count FROM danh_muc');
+    if (catRows[0].count === 0) {
+      const defaultCats = [
+        ['appetizer', 'Đồ ăn'],
+        ['main', 'Món chính'],
+        ['drink', 'Đồ uống'],
+        ['dessert', 'Tráng miệng']
+      ];
+      for (const cat of defaultCats) {
+        await pool.query('INSERT INTO danh_muc (ma_danh_muc, ten_danh_muc) VALUES (?, ?)', cat);
+      }
+    }
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS thuc_don (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ten_mon VARCHAR(255) NOT NULL,
@@ -225,6 +246,40 @@ export async function confirmPayment(tableId) {
 
 export async function getMenuItems() {
   return await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available FROM thuc_don WHERE con_hang = 1');
+}
+
+export async function addMenuItem(data) {
+  const result = await dbRun(
+    'INSERT INTO thuc_don (ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, con_hang) VALUES (?, ?, ?, ?, ?, ?)',
+    [
+      data.ten_mon,
+      data.gia_tien,
+      data.loai_mon,
+      data.anh_minh_hoa || '',
+      data.mo_ta || '',
+      1
+    ]
+  );
+  return result.insertId;
+}
+
+export async function updateMenuItem(id, data) {
+  await dbRun(
+    'UPDATE thuc_don SET ten_mon = ?, gia_tien = ?, loai_mon = ? WHERE id = ?',
+    [data.ten_mon, data.gia_tien, data.loai_mon, id]
+  );
+}
+
+export async function getCategories() {
+  return await dbAll('SELECT * FROM danh_muc');
+}
+
+export async function addCategory(ma_danh_muc, ten_danh_muc) {
+  const result = await dbRun(
+    'INSERT INTO danh_muc (ma_danh_muc, ten_danh_muc) VALUES (?, ?)',
+    [ma_danh_muc, ten_danh_muc]
+  );
+  return result.insertId;
 }
 
 export async function getChefActiveItems() {

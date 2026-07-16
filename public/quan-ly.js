@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   setupTabs();
+  await loadCategories();
   loadMenuData();
   loadTablesData();
   loadOverviewData();
@@ -48,6 +49,26 @@ function setupTabs() {
 }
 
 let menuData = [];
+let categoriesData = [];
+
+async function loadCategories() {
+  try {
+    const res = await fetch('/api/categories');
+    categoriesData = await res.json();
+    const select = document.getElementById('new-loai-mon');
+    if (select) {
+      select.innerHTML = '';
+      categoriesData.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.ma_danh_muc;
+        opt.textContent = cat.ten_danh_muc;
+        select.appendChild(opt);
+      });
+    }
+  } catch (err) {
+    console.error('Lỗi tải danh mục', err);
+  }
+}
 
 async function loadMenuData() {
   const tbody = document.getElementById('menu-table-body');
@@ -75,9 +96,8 @@ function renderMenuTable(data) {
     const code = 'SP' + String(item.id).padStart(6, '0');
     // Map category
     let categoryName = 'Khác';
-    if (item.category === 'appetizer' || item.category === 'main') categoryName = 'Đồ ăn';
-    if (item.category === 'drink') categoryName = 'Đồ uống';
-    if (item.category === 'dessert') categoryName = 'Tráng miệng';
+    const cat = categoriesData.find(c => c.ma_danh_muc === item.category);
+    if(cat) categoryName = cat.ten_danh_muc;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -92,9 +112,122 @@ function renderMenuTable(data) {
       <td>${categoryName}</td>
       <td>3%</td>
       <td style="text-align:right; font-weight:600;">${formatPrice(item.price)}</td>
+      <td style="text-align:center;">
+        <svg onclick="editMenu(${item.id})" style="cursor:pointer; color:var(--text-secondary);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+      </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function openAddMenuModal() {
+  document.getElementById('edit-menu-id').value = '';
+  document.getElementById('menu-modal-title').textContent = 'Thêm món mới';
+  document.getElementById('new-ten-mon').value = '';
+  document.getElementById('new-gia-tien').value = '';
+  if (categoriesData.length > 0) document.getElementById('new-loai-mon').value = categoriesData[0].ma_danh_muc;
+  document.getElementById('add-menu-modal').style.display = 'flex';
+}
+
+function editMenu(id) {
+  const item = menuData.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('edit-menu-id').value = item.id;
+  document.getElementById('menu-modal-title').textContent = 'Sửa món: ' + item.name;
+  document.getElementById('new-ten-mon').value = item.name;
+  document.getElementById('new-loai-mon').value = item.category;
+  document.getElementById('new-gia-tien').value = item.price;
+  document.getElementById('add-menu-modal').style.display = 'flex';
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast-notification');
+  if(toast) {
+    document.getElementById('toast-message').textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(() => toast.style.display = 'none', 3000);
+  } else {
+    alert(msg);
+  }
+}
+
+async function submitAddMenu() {
+  const id = document.getElementById('edit-menu-id').value;
+  const ten_mon = document.getElementById('new-ten-mon').value.trim();
+  const loai_mon = document.getElementById('new-loai-mon').value;
+  const gia_tien = document.getElementById('new-gia-tien').value;
+
+  if (!ten_mon || !gia_tien) {
+    alert('Vui lòng nhập đầy đủ Tên và Giá!');
+    return;
+  }
+
+  const token = localStorage.getItem('adminToken');
+  const url = id ? '/api/menu/' + id : '/api/menu';
+  const method = id ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method: method,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ ten_mon, loai_mon, gia_tien: parseFloat(gia_tien) })
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('add-menu-modal').style.display = 'none';
+      showToast(id ? 'Đã sửa món thành công!' : 'Đã thêm món mới thành công!');
+      loadMenuData();
+    } else {
+      alert(data.error || 'Lỗi thao tác');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
+}
+
+function openAddCategoryModal() {
+  document.getElementById('new-cat-ma').value = '';
+  document.getElementById('new-cat-ten').value = '';
+  document.getElementById('add-category-modal').style.display = 'flex';
+}
+
+async function submitAddCategory() {
+  const ma_danh_muc = document.getElementById('new-cat-ma').value.trim();
+  const ten_danh_muc = document.getElementById('new-cat-ten').value.trim();
+
+  if (!ma_danh_muc || !ten_danh_muc) {
+    alert('Vui lòng nhập đủ thông tin!');
+    return;
+  }
+
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ ma_danh_muc, ten_danh_muc })
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('add-category-modal').style.display = 'none';
+      showToast('Thêm nhóm món thành công!');
+      await loadCategories();
+    } else {
+      alert(data.error || 'Lỗi thêm nhóm');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
 }
 
 // Search functionality

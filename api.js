@@ -212,6 +212,89 @@ export default function createApiRouter(broadcast) {
 
 
 
+  // 4b. Thêm món mới
+  router.post('/menu', async (req, res) => {
+    // Chỉ admin mới được thêm món
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta } = req.body;
+      if (!ten_mon || !gia_tien || !loai_mon) {
+        return res.status(400).json({ error: 'Thiếu thông tin bắt buộc (Tên, Giá, Loại)' });
+      }
+
+      const id = await db.addMenuItem({
+        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta
+      });
+      res.json({ success: true, id });
+    } catch (err) {
+      console.error(err);
+      if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+        res.status(401).json({ error: 'Token không hợp lệ' });
+      } else {
+        res.status(500).json({ error: 'Lỗi máy chủ' });
+      }
+    }
+  });
+
+  // 4c. Sửa món
+  router.put('/menu/:id', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      const { ten_mon, gia_tien, loai_mon } = req.body;
+      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon });
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // 4d. Lấy danh mục
+  router.get('/categories', async (req, res) => {
+    try {
+      const cats = await db.getCategories();
+      res.json(cats);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // 4e. Thêm danh mục mới
+  router.post('/categories', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      const { ma_danh_muc, ten_danh_muc } = req.body;
+      if (!ma_danh_muc || !ten_danh_muc) {
+        return res.status(400).json({ error: 'Thiếu thông tin danh mục' });
+      }
+
+      const id = await db.addCategory(ma_danh_muc, ten_danh_muc);
+      res.json({ success: true, id });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ (Có thể mã danh mục đã tồn tại)' });
+    }
+  });
+
   // 7. Lấy dữ liệu cho Thu ngân (Trạng thái toàn bộ bàn ăn)
   router.get('/cashier/tables', async (req, res) => {
     try {
