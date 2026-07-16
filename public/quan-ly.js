@@ -1,7 +1,21 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const token = localStorage.getItem('adminToken');
   if (!token) {
     window.location.href = '/login.html';
+    return;
+  }
+
+  // Xác thực token với máy chủ
+  try {
+    const res = await fetch('/api/auth/check', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) {
+      throw new Error('Token expired or invalid');
+    }
+  } catch (err) {
+    // Nếu lỗi hoặc server báo 401 (do khởi động lại đổi SECRET_KEY)
+    logout();
     return;
   }
 
@@ -122,7 +136,7 @@ async function loadOverviewData() {
   try {
     const res = await fetch('/api/admin/overview');
     const data = await res.json();
-    
+
     document.getElementById('overview-revenue').textContent = formatPrice(data.revenueToday);
     document.getElementById('overview-orders').textContent = data.ordersToday;
     document.getElementById('overview-occupancy').textContent = data.occupancyRate + '%';

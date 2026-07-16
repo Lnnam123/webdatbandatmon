@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Thay đổi trang chủ
 app.get('/', (req, res) => {
-  res.redirect('/quan-ly.html');
+  res.redirect('/login.html');
 });
 
 // Đường dẫn cho các bàn (VD: datmonban1)

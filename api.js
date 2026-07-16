@@ -2,8 +2,11 @@ import express from 'express';
 import * as db from './database.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
-const SECRET_KEY = 'glow_bites_secret_key_123'; // In production, use environment variable
+// Tạo khóa bí mật ngẫu nhiên mỗi khi server khởi động
+// Điều này giúp mọi token cũ đều bị vô hiệu hóa khi ngừng chạy máy chủ
+const SECRET_KEY = crypto.randomBytes(32).toString('hex');
 
 export default function createApiRouter(broadcast) {
   const router = express.Router();
@@ -207,6 +210,8 @@ export default function createApiRouter(broadcast) {
     }
   });
 
+
+
   // 7. Lấy dữ liệu cho Thu ngân (Trạng thái toàn bộ bàn ăn)
   router.get('/cashier/tables', async (req, res) => {
     try {
@@ -275,6 +280,21 @@ export default function createApiRouter(broadcast) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // Kiểm tra token (Dùng khi vào trang quản lý)
+  router.get('/auth/check', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+      jwt.verify(token, SECRET_KEY);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn (Server khởi động lại)' });
     }
   });
 

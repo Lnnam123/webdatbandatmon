@@ -1,3 +1,10 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('adminToken');
+  if (token) {
+    window.location.href = '/quan-ly.html';
+  }
+});
+
 // Switch between Login and Register forms
 function switchForm(formType) {
   document.getElementById('login-form-container').classList.remove('active');
