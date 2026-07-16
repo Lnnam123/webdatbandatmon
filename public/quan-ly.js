@@ -166,7 +166,7 @@ function renderMenuTable(data) {
   tbody.innerHTML = '';
 
   if (data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">Không có dữ liệu</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">Không có dữ liệu</td></tr>`;
     return;
   }
 
@@ -186,7 +186,6 @@ function renderMenuTable(data) {
       </td>
       <td>${code}</td>
       <td style="font-weight:500;">${item.name}</td>
-      <td>${categoryName}</td>
       <td>${categoryName}</td>
       <td>3%</td>
       <td style="text-align:right; font-weight:600;">${formatPrice(item.price)}</td>
