@@ -39,6 +39,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderMenuTable(filtered);
     });
   }
+
+  // Setup Drag & Drop Upload
+  const dropZone = document.getElementById('upload-drop-zone');
+  const fileInput = document.getElementById('new-anh-minh-hoa');
+  const btnBrowse = document.getElementById('btn-browse-file');
+
+  if (dropZone && fileInput && btnBrowse) {
+    btnBrowse.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+    dropZone.addEventListener('click', () => {
+      fileInput.click();
+    });
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        const event = new Event('change', { bubbles: true });
+        fileInput.dispatchEvent(event);
+      }
+    });
+  }
 });
 
 // Custom Confirm Modal Logic
@@ -150,7 +182,7 @@ function renderMenuTable(data) {
     tr.innerHTML = `
       <td><input type="checkbox" class="row-checkbox" value="${item.id}" onchange="toggleDeleteButton()"></td>
       <td>
-        <img src="${item.image_url ? (item.image_url.startsWith('http') ? item.image_url : '/assets/' + item.image_url) : 'https://via.placeholder.com/32'}" class="item-img-small" />
+        <img src="${item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : '/assets/' + item.image_url) : 'https://via.placeholder.com/32'}" class="item-img-small" />
       </td>
       <td>${code}</td>
       <td style="font-weight:500;">${item.name}</td>
@@ -188,6 +220,14 @@ function openAddMenuModal() {
   document.getElementById('menu-modal-title').textContent = 'Thêm món mới';
   document.getElementById('new-ten-mon').value = '';
   document.getElementById('new-gia-tien').value = '';
+  document.getElementById('new-anh-minh-hoa').value = '';
+  
+  document.getElementById('preview-anh-minh-hoa').src = '';
+  document.getElementById('preview-anh-minh-hoa').style.display = 'none';
+  document.getElementById('upload-icon-svg').style.display = 'block';
+  document.getElementById('upload-title-text').style.display = 'block';
+  
+  document.getElementById('preview-anh-minh-hoa').dataset.oldImage = '';
   if (categoriesData.length > 0) document.getElementById('new-loai-mon').value = categoriesData[0].ma_danh_muc;
   document.getElementById('add-menu-modal').style.display = 'flex';
 }
@@ -200,7 +240,39 @@ function editMenu(id) {
   document.getElementById('new-ten-mon').value = item.name;
   document.getElementById('new-loai-mon').value = item.category;
   document.getElementById('new-gia-tien').value = item.price;
+  document.getElementById('new-anh-minh-hoa').value = '';
+  
+  const imgUrl = item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : '/assets/' + item.image_url) : '';
+  
+  if (imgUrl) {
+    document.getElementById('preview-anh-minh-hoa').src = imgUrl;
+    document.getElementById('preview-anh-minh-hoa').style.display = 'block';
+    document.getElementById('upload-icon-svg').style.display = 'none';
+    document.getElementById('upload-title-text').style.display = 'none';
+  } else {
+    document.getElementById('preview-anh-minh-hoa').src = '';
+    document.getElementById('preview-anh-minh-hoa').style.display = 'none';
+    document.getElementById('upload-icon-svg').style.display = 'block';
+    document.getElementById('upload-title-text').style.display = 'block';
+  }
+  
+  document.getElementById('preview-anh-minh-hoa').dataset.oldImage = item.image_url || '';
+  
   document.getElementById('add-menu-modal').style.display = 'flex';
+}
+
+function previewImage(event) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById('preview-anh-minh-hoa').src = e.target.result;
+      document.getElementById('preview-anh-minh-hoa').style.display = 'block';
+      document.getElementById('upload-icon-svg').style.display = 'none';
+      document.getElementById('upload-title-text').style.display = 'none';
+    }
+    reader.readAsDataURL(file);
+  }
 }
 
 function showToast(msg) {
@@ -219,6 +291,8 @@ async function submitAddMenu() {
   const ten_mon = document.getElementById('new-ten-mon').value.trim();
   const loai_mon = document.getElementById('new-loai-mon').value;
   const gia_tien = document.getElementById('new-gia-tien').value;
+  const fileInput = document.getElementById('new-anh-minh-hoa');
+  const oldImage = document.getElementById('preview-anh-minh-hoa').dataset.oldImage;
 
   if (!ten_mon || !gia_tien) {
     alert('Vui lòng nhập đầy đủ Tên và Giá!');
@@ -226,17 +300,45 @@ async function submitAddMenu() {
   }
 
   const token = localStorage.getItem('adminToken');
-  const url = id ? '/api/menu/' + id : '/api/menu';
-  const method = id ? 'PUT' : 'POST';
+  let anh_minh_hoa = oldImage || null;
 
   try {
+    // 1. Upload ảnh nếu có chọn file
+    if (fileInput.files.length > 0) {
+      const formData = new FormData();
+      formData.append('image', fileInput.files[0]);
+      
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData
+      });
+      
+      const uploadData = await uploadRes.json();
+      if (uploadRes.ok) {
+        anh_minh_hoa = uploadData.url;
+      } else {
+        alert('Lỗi khi tải ảnh lên: ' + uploadData.error);
+        return;
+      }
+    }
+
+    // 2. Gửi dữ liệu món ăn
+    const url = id ? '/api/menu/' + id : '/api/menu';
+    const method = id ? 'PUT' : 'POST';
+
     const res = await fetch(url, {
       method: method,
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
-      body: JSON.stringify({ ten_mon, loai_mon, gia_tien: parseFloat(gia_tien) })
+      body: JSON.stringify({ 
+        ten_mon, 
+        loai_mon, 
+        gia_tien: parseFloat(gia_tien),
+        anh_minh_hoa
+      })
     });
     
     const data = await res.json();

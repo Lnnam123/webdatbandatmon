@@ -3,6 +3,19 @@ import * as db from './database.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import multer from 'multer';
+import path from 'path';
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'public/uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 // Tạo khóa bí mật ngẫu nhiên mỗi khi server khởi động
 // Điều này giúp mọi token cũ đều bị vô hiệu hóa khi ngừng chạy máy chủ
@@ -212,6 +225,27 @@ export default function createApiRouter(broadcast) {
 
 
 
+  // 4a. Upload ảnh
+  router.post('/upload', upload.single('image'), (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'Không tìm thấy file ảnh' });
+      }
+      
+      res.json({ success: true, url: '/uploads/' + req.file.filename });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi tải ảnh lên' });
+    }
+  });
+
   // 4b. Thêm món mới
   router.post('/menu', async (req, res) => {
     // Chỉ admin mới được thêm món
@@ -252,8 +286,8 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon } = req.body;
-      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon });
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta } = req.body;
+      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta });
       res.json({ success: true });
     } catch (err) {
       console.error(err);

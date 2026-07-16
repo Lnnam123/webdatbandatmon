@@ -264,10 +264,19 @@ export async function addMenuItem(data) {
 }
 
 export async function updateMenuItem(id, data) {
-  await dbRun(
-    'UPDATE thuc_don SET ten_mon = ?, gia_tien = ?, loai_mon = ? WHERE id = ?',
-    [data.ten_mon, data.gia_tien, data.loai_mon, id]
-  );
+  let fields = [];
+  let params = [];
+  
+  if (data.ten_mon !== undefined) { fields.push('ten_mon = ?'); params.push(data.ten_mon); }
+  if (data.gia_tien !== undefined) { fields.push('gia_tien = ?'); params.push(data.gia_tien); }
+  if (data.loai_mon !== undefined) { fields.push('loai_mon = ?'); params.push(data.loai_mon); }
+  if (data.anh_minh_hoa !== undefined) { fields.push('anh_minh_hoa = ?'); params.push(data.anh_minh_hoa); }
+  if (data.mo_ta !== undefined) { fields.push('mo_ta = ?'); params.push(data.mo_ta); }
+  
+  if (fields.length === 0) return;
+  params.push(id);
+  
+  await dbRun(`UPDATE thuc_don SET ${fields.join(', ')} WHERE id = ?`, params);
 }
 
 export async function getCategories() {

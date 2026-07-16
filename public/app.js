@@ -269,7 +269,7 @@ function renderMenu() {
     
     // Tạo ảnh đại diện hoặc lấy ảnh mặc định
     const imgUrl = item.image_url 
-      ? (item.image_url.startsWith('http') ? item.image_url : `/assets/${item.image_url}`) 
+      ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : `/assets/${item.image_url}`) 
       : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
     
     const cartItem = state.cart.find(c => c.id === item.id);
@@ -415,7 +415,7 @@ function renderCartModal() {
     // Get image from state.menu
     const menuItem = state.menu.find(m => m.id === item.id);
     const imgUrl = menuItem && menuItem.image_url 
-      ? (menuItem.image_url.startsWith('http') ? menuItem.image_url : `/assets/${menuItem.image_url}`) 
+      ? (menuItem.image_url.startsWith('http') || menuItem.image_url.startsWith('/uploads') ? menuItem.image_url : `/assets/${menuItem.image_url}`) 
       : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
 
     const div = document.createElement('div');
@@ -658,7 +658,7 @@ function setupNewModalsEvents() {
         const div = document.createElement('div');
         div.className = 'kiot-menu-item';
         div.style.marginBottom = '12px';
-        const imgUrl = item.image_url ? (item.image_url.startsWith('http') ? item.image_url : `/assets/${item.image_url}`) : '';
+        const imgUrl = item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : `/assets/${item.image_url}`) : '';
         div.innerHTML = `
           <img src="${imgUrl}" class="kiot-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
           <div class="kiot-item-info">
