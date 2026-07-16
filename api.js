@@ -1,5 +1,9 @@
 import express from 'express';
 import * as db from './database.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
+const SECRET_KEY = 'glow_bites_secret_key_123'; // In production, use environment variable
 
 export default function createApiRouter(broadcast) {
   const router = express.Router();
@@ -208,6 +212,66 @@ export default function createApiRouter(broadcast) {
     try {
       const tables = await db.getCashierTables();
       res.json(tables);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+  // 8. Lấy dữ liệu danh sách món ăn (Cho giao diện Quản lý)
+  router.get('/admin/menu', async (req, res) => {
+    try {
+      // getMenuItems trả về toàn bộ menu_items
+      const menu = await db.getMenuItems();
+      res.json(menu);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi lấy menu' });
+    }
+  });
+  // 9. Lấy dữ liệu thống kê tổng quan
+  router.get('/admin/overview', async (req, res) => {
+    try {
+      const stats = await db.getOverviewStats();
+      res.json(stats);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi lấy dữ liệu tổng quan' });
+    }
+  });
+
+  // --- AUTHENTICATION ---
+  // Đăng ký (Register)
+  router.post('/auth/register', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) return res.status(400).json({ error: 'Thiếu username hoặc password' });
+      
+      const existingUser = await db.getUserByUsername(username);
+      if (existingUser) return res.status(400).json({ error: 'Tài khoản đã tồn tại' });
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await db.createUser(username, hashedPassword);
+      res.json({ success: true, message: 'Đăng ký thành công' });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // Đăng nhập (Login)
+  router.post('/auth/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) return res.status(400).json({ error: 'Thiếu username hoặc password' });
+      
+      const user = await db.getUserByUsername(username);
+      if (!user) return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
+      
+      const isValid = await bcrypt.compare(password, user.password);
+      if (!isValid) return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
+      
+      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET_KEY, { expiresIn: '12h' });
+      res.json({ success: true, token });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Lỗi máy chủ' });

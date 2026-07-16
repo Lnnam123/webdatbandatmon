@@ -1,157 +1,184 @@
-import sqlite3 from 'sqlite3';
-import { promisify } from 'util';
+import mysql from 'mysql2/promise';
+import bcrypt from 'bcryptjs';
 
-// Mở kết nối đến database file
-const db = new sqlite3.Database('./restaurant.db', (err) => {
-  if (err) {
-    console.error('Error opening database:', err.message);
-  } else {
-    console.log('Connected to SQLite database.');
-  }
-});
+let pool;
 
-// Chuyển các hàm SQLite callback thành Promises để dùng async/await
-const dbRun = promisify(db.run.bind(db));
-const dbGet = promisify(db.get.bind(db));
-const dbAll = promisify(db.all.bind(db));
-
-// Khởi tạo các bảng
 export async function initDb() {
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS tables (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      table_number TEXT UNIQUE NOT NULL,
-      qr_token TEXT UNIQUE NOT NULL,
-      status TEXT NOT NULL DEFAULT 'available', -- available, serving, pending_payment
-      current_session_token TEXT
-    )
-  `);
+  try {
+    const connection = await mysql.createConnection({
+      host: 'localhost',
+      user: 'root',
+      password: ''
+    });
+    
+    await connection.query(`CREATE DATABASE IF NOT EXISTS restaurant_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await connection.end();
 
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS menu_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      price REAL NOT NULL,
-      category TEXT NOT NULL, -- appetizer, main, dessert, drink
-      image_url TEXT,
-      description TEXT,
-      is_available INTEGER NOT NULL DEFAULT 1 -- 1: còn, 0: hết
-    )
-  `);
+    pool = mysql.createPool({
+      host: 'localhost',
+      user: 'root',
+      password: '',
+      database: 'restaurant_db',
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    });
 
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      table_id INTEGER NOT NULL,
-      session_token TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending', -- pending, cooking, done, paid
-      total_amount REAL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (table_id) REFERENCES tables(id)
-    )
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tai_khoan (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ten_dang_nhap VARCHAR(255) UNIQUE NOT NULL,
+        mat_khau VARCHAR(255) NOT NULL,
+        vai_tro VARCHAR(50) DEFAULT 'admin'
+      )
+    `);
 
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL,
-      menu_item_id INTEGER NOT NULL,
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL, -- giá tại thời điểm đặt
-      status TEXT NOT NULL DEFAULT 'cooking', -- cooking, done
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (order_id) REFERENCES orders(id),
-      FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
-    )
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ban_an (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ten_ban VARCHAR(255) UNIQUE NOT NULL,
+        ma_duong_dan VARCHAR(255) UNIQUE NOT NULL,
+        trang_thai VARCHAR(50) NOT NULL DEFAULT 'available',
+        ma_phien_hien_tai VARCHAR(255)
+      )
+    `);
 
-  console.log('Database tables verified/created successfully.');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS thuc_don (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ten_mon VARCHAR(255) NOT NULL,
+        gia_tien DOUBLE NOT NULL,
+        loai_mon VARCHAR(50) NOT NULL,
+        anh_minh_hoa TEXT,
+        mo_ta TEXT,
+        con_hang TINYINT NOT NULL DEFAULT 1
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS don_hang (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_ban INT NOT NULL,
+        ma_phien VARCHAR(255) NOT NULL,
+        trang_thai VARCHAR(50) NOT NULL DEFAULT 'pending',
+        tong_tien DOUBLE DEFAULT 0,
+        ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_ban) REFERENCES ban_an(id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chi_tiet_don_hang (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_don_hang INT NOT NULL,
+        id_mon_an INT NOT NULL,
+        so_luong INT NOT NULL,
+        gia_ban DOUBLE NOT NULL,
+        trang_thai VARCHAR(50) NOT NULL DEFAULT 'cooking',
+        ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_don_hang) REFERENCES don_hang(id),
+        FOREIGN KEY (id_mon_an) REFERENCES thuc_don(id)
+      )
+    `);
+
+    console.log('MySQL Database tables verified/created successfully.');
+  } catch (err) {
+    console.error('MySQL Init Error:', err);
+  }
 }
 
-// Lấy thông tin bàn bằng qr_token
+// --- HELPER FUNCTIONS ---
+async function dbGet(sql, params = []) {
+  if (!pool) throw new Error('Database not initialized');
+  const [rows] = await pool.query(sql, params);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+async function dbAll(sql, params = []) {
+  if (!pool) throw new Error('Database not initialized');
+  const [rows] = await pool.query(sql, params);
+  return rows;
+}
+
+async function dbRun(sql, params = []) {
+  if (!pool) throw new Error('Database not initialized');
+  const [result] = await pool.query(sql, params);
+  return result;
+}
+
+export function getPool() {
+  return pool;
+}
+
+// --- AUTH FUNCTIONS ---
+export async function getUserByUsername(username) {
+  return await dbGet('SELECT id, ten_dang_nhap as username, mat_khau as password, vai_tro as role FROM tai_khoan WHERE ten_dang_nhap = ?', [username]);
+}
+export async function createUser(username, password) {
+  return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau) VALUES (?, ?)', [username, password]);
+}
+
+// --- APP FUNCTIONS ---
 export async function getTableByQrToken(qrToken) {
-  return await dbGet('SELECT * FROM tables WHERE qr_token = ?', [qrToken]);
+  return await dbGet('SELECT id, ten_ban as table_number, ma_duong_dan as qr_token, trang_thai as status, ma_phien_hien_tai as current_session_token FROM ban_an WHERE ma_duong_dan = ?', [qrToken]);
 }
 
-// Cập nhật phiên làm việc của bàn
 export async function updateTableSession(tableId, sessionToken) {
-  return await dbRun(
-    'UPDATE tables SET current_session_token = ? WHERE id = ?',
-    [sessionToken, tableId]
-  );
+  return await dbRun('UPDATE ban_an SET ma_phien_hien_tai = ? WHERE id = ?', [sessionToken, tableId]);
 }
 
-// Tạo đơn hàng mới hoặc thêm vào đơn hiện tại
 export async function createOrder(tableId, sessionToken, cart) {
   let totalAmount = 0;
   for (const item of cart) {
-    const menuItem = await dbGet('SELECT price FROM menu_items WHERE id = ?', [item.id]);
+    const menuItem = await dbGet('SELECT gia_tien FROM thuc_don WHERE id = ?', [item.id]);
     if (menuItem) {
-      totalAmount += menuItem.price * item.quantity;
+      totalAmount += menuItem.gia_tien * item.quantity;
     }
   }
 
-  // Kiểm tra xem đã có order active chưa
   let order = await dbGet(
-    'SELECT id FROM orders WHERE table_id = ? AND session_token = ? AND status != "paid" ORDER BY id DESC LIMIT 1',
+    'SELECT id FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid" ORDER BY id DESC LIMIT 1',
     [tableId, sessionToken]
   );
 
   let orderId;
   if (order) {
     orderId = order.id;
-    // Cập nhật tổng tiền
-    await dbRun(
-      'UPDATE orders SET total_amount = total_amount + ? WHERE id = ?',
-      [totalAmount, orderId]
-    );
+    await dbRun('UPDATE don_hang SET tong_tien = tong_tien + ? WHERE id = ?', [totalAmount, orderId]);
   } else {
-    // 1. Chèn đơn hàng mới
-    orderId = await new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO orders (table_id, session_token, status, total_amount) VALUES (?, ?, ?, ?)',
-        [tableId, sessionToken, 'pending', totalAmount],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
-      );
-    });
+    const result = await dbRun(
+      'INSERT INTO don_hang (id_ban, ma_phien, trang_thai, tong_tien) VALUES (?, ?, ?, ?)',
+      [tableId, sessionToken, 'pending', totalAmount]
+    );
+    orderId = result.insertId;
   }
 
-  // 2. Chèn các món ăn trong giỏ hàng
   for (const item of cart) {
-    const menuItem = await dbGet('SELECT price FROM menu_items WHERE id = ?', [item.id]);
+    const menuItem = await dbGet('SELECT gia_tien FROM thuc_don WHERE id = ?', [item.id]);
     if (menuItem) {
       await dbRun(
-        'INSERT INTO order_items (order_id, menu_item_id, quantity, price, status, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-        [orderId, item.id, item.quantity, menuItem.price, 'cooking']
+        'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, so_luong, gia_ban, trang_thai) VALUES (?, ?, ?, ?, ?)',
+        [orderId, item.id, item.quantity, menuItem.gia_tien, 'cooking']
       );
     }
   }
 
-  // 3. Cập nhật trạng thái bàn ăn thành 'serving'
-  await dbRun(
-    'UPDATE tables SET status = "serving", current_session_token = ? WHERE id = ?',
-    [sessionToken, tableId]
-  );
-
+  await dbRun('UPDATE ban_an SET trang_thai = "serving", ma_phien_hien_tai = ? WHERE id = ?', [sessionToken, tableId]);
   return orderId;
 }
 
-// Lấy thông tin đơn hàng hiện tại của bàn
 export async function getActiveOrderForTable(tableId, sessionToken) {
   const order = await dbGet(
-    'SELECT * FROM orders WHERE table_id = ? AND session_token = ? AND status != "paid" ORDER BY id DESC LIMIT 1',
+    'SELECT id, id_ban as table_id, ma_phien as session_token, trang_thai as status, tong_tien as total_amount, ngay_tao as created_at FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid" ORDER BY id DESC LIMIT 1',
     [tableId, sessionToken]
   );
   if (!order) return null;
 
   const items = await dbAll(
-    `SELECT oi.id as order_item_id, oi.quantity, oi.price, oi.status, oi.created_at, mi.id as menu_item_id, mi.name, mi.image_url, mi.category 
-     FROM order_items oi
-     JOIN menu_items mi ON oi.menu_item_id = mi.id
-     WHERE oi.order_id = ?`,
+    `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
+     FROM chi_tiet_don_hang oi
+     JOIN thuc_don mi ON oi.id_mon_an = mi.id
+     WHERE oi.id_don_hang = ?`,
     [order.id]
   );
 
@@ -159,78 +186,61 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
   return order;
 }
 
-// Cập nhật trạng thái chi tiết món ăn trong đơn (dành cho đầu bếp)
 export async function updateOrderItemStatus(orderItemId, status) {
-  await dbRun('UPDATE order_items SET status = ? WHERE id = ?', [status, orderItemId]);
-
-  // Kiểm tra xem tất cả các món trong order đã 'done' chưa. Nếu rồi thì cập nhật trạng thái order
-  const item = await dbGet('SELECT order_id FROM order_items WHERE id = ?', [orderItemId]);
+  await dbRun('UPDATE chi_tiet_don_hang SET trang_thai = ? WHERE id = ?', [status, orderItemId]);
+  const item = await dbGet('SELECT id_don_hang FROM chi_tiet_don_hang WHERE id = ?', [orderItemId]);
   if (item) {
-    const activeItems = await dbAll('SELECT status FROM order_items WHERE order_id = ?', [item.order_id]);
-    const allDone = activeItems.every(i => i.status === 'done');
+    const activeItems = await dbAll('SELECT trang_thai FROM chi_tiet_don_hang WHERE id_don_hang = ?', [item.id_don_hang]);
+    const allDone = activeItems.every(i => i.trang_thai === 'done');
     if (allDone) {
-      await dbRun('UPDATE orders SET status = "done" WHERE id = ?', [item.order_id]);
+      await dbRun('UPDATE don_hang SET trang_thai = "done" WHERE id = ?', [item.id_don_hang]);
     }
   }
 }
 
-// Yêu cầu thanh toán
 export async function checkoutTable(tableId) {
-  // Cập nhật trạng thái bàn thành 'pending_payment'
-  await dbRun('UPDATE tables SET status = "pending_payment" WHERE id = ?', [tableId]);
-
-  // Lấy chi tiết đơn hàng hiện tại
-  const table = await dbGet('SELECT current_session_token FROM tables WHERE id = ?', [tableId]);
-  if (table && table.current_session_token) {
-    const order = await getActiveOrderForTable(tableId, table.current_session_token);
+  await dbRun('UPDATE ban_an SET trang_thai = "pending_payment" WHERE id = ?', [tableId]);
+  const table = await dbGet('SELECT ma_phien_hien_tai FROM ban_an WHERE id = ?', [tableId]);
+  if (table && table.ma_phien_hien_tai) {
+    const order = await getActiveOrderForTable(tableId, table.ma_phien_hien_tai);
     return order;
   }
   return null;
 }
 
-// Xác nhận thanh toán từ thu ngân
 export async function confirmPayment(tableId) {
-  const table = await dbGet('SELECT current_session_token FROM tables WHERE id = ?', [tableId]);
+  const table = await dbGet('SELECT ma_phien_hien_tai FROM ban_an WHERE id = ?', [tableId]);
   if (table) {
-    // 1. Cập nhật các order của phiên hiện tại sang 'paid'
-    if (table.current_session_token) {
+    if (table.ma_phien_hien_tai) {
       await dbRun(
-        'UPDATE orders SET status = "paid" WHERE table_id = ? AND session_token = ?',
-        [tableId, table.current_session_token]
+        'UPDATE don_hang SET trang_thai = "paid" WHERE id_ban = ? AND ma_phien = ?',
+        [tableId, table.ma_phien_hien_tai]
       );
     }
-
-    // 2. Trả bàn về trạng thái 'available' (trống) và xóa session token
-    await dbRun(
-      'UPDATE tables SET status = "available", current_session_token = NULL WHERE id = ?',
-      [tableId]
-    );
+    await dbRun('UPDATE ban_an SET trang_thai = "available", ma_phien_hien_tai = NULL WHERE id = ?', [tableId]);
     return true;
   }
   return false;
 }
 
-// Lấy danh sách thực đơn
 export async function getMenuItems() {
-  return await dbAll('SELECT * FROM menu_items WHERE is_available = 1');
+  return await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available FROM thuc_don WHERE con_hang = 1');
 }
 
-// Lấy danh sách món ăn cần chế biến (dành cho Đầu bếp)
 export async function getChefActiveItems() {
   return await dbAll(`
-    SELECT oi.id as order_item_id, oi.quantity, oi.status, mi.name, t.table_number, t.id as table_id, o.session_token, o.id as order_id, o.created_at
-    FROM order_items oi
-    JOIN menu_items mi ON oi.menu_item_id = mi.id
-    JOIN orders o ON oi.order_id = o.id
-    JOIN tables t ON o.table_id = t.id
-    WHERE oi.status = 'cooking' AND o.status != 'paid'
-    ORDER BY o.created_at ASC
+    SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.trang_thai as status, mi.ten_mon as name, t.ten_ban as table_number, t.id as table_id, o.ma_phien as session_token, o.id as order_id, o.ngay_tao as created_at
+    FROM chi_tiet_don_hang oi
+    JOIN thuc_don mi ON oi.id_mon_an = mi.id
+    JOIN don_hang o ON oi.id_don_hang = o.id
+    JOIN ban_an t ON o.id_ban = t.id
+    WHERE oi.trang_thai = 'cooking' AND o.trang_thai != 'paid'
+    ORDER BY o.ngay_tao ASC
   `);
 }
 
-// Lấy tất cả thông tin bàn (dành cho Thu ngân)
 export async function getCashierTables() {
-  const tables = await dbAll('SELECT * FROM tables ORDER BY table_number ASC');
+  const tables = await dbAll('SELECT id, ten_ban as table_number, ma_duong_dan as qr_token, trang_thai as status, ma_phien_hien_tai as current_session_token FROM ban_an ORDER BY ten_ban ASC');
   for (const table of tables) {
     if (table.status !== 'available' && table.current_session_token) {
       table.active_order = await getActiveOrderForTable(table.id, table.current_session_token);
@@ -241,4 +251,22 @@ export async function getCashierTables() {
   return tables;
 }
 
-export { db };
+export async function getOverviewStats() {
+  const todayRevenue = await dbGet("SELECT SUM(tong_tien) as total FROM don_hang WHERE trang_thai = 'paid' AND DATE(ngay_tao) = CURDATE()");
+  const todayOrders = await dbGet("SELECT COUNT(id) as count FROM don_hang WHERE trang_thai = 'paid' AND DATE(ngay_tao) = CURDATE()");
+  const activeTables = await dbGet("SELECT COUNT(id) as count FROM ban_an WHERE trang_thai IN ('serving', 'pending_payment')");
+  const totalTables = await dbGet("SELECT COUNT(id) as count FROM ban_an");
+
+  let occupancyRate = 0;
+  if (totalTables && totalTables.count > 0) {
+    occupancyRate = ((activeTables.count / totalTables.count) * 100).toFixed(2);
+  }
+
+  return {
+    revenueToday: todayRevenue && todayRevenue.total ? todayRevenue.total : 0,
+    ordersToday: todayOrders ? todayOrders.count : 0,
+    activeTables: activeTables ? activeTables.count : 0,
+    totalTables: totalTables ? totalTables.count : 0,
+    occupancyRate: occupancyRate
+  };
+}

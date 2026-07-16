@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glow Bites - Đăng nhập Quản lý</title>
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="logo">
+      <span>Glow</span>Bites Admin
+    </div>
+
+    <!-- Màn hình Đăng nhập -->
+    <div id="login-form-container" class="auth-form-container active">
+      <h2>Đăng nhập</h2>
+      <p>Truy cập vào hệ thống quản lý</p>
+      
+      <div id="login-error" class="error-msg"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label>Tài khoản</label>
+          <input type="text" id="login-username" required placeholder="Nhập tên tài khoản">
+        </div>
+        <div class="form-group">
+          <label>Mật khẩu</label>
+          <input type="password" id="login-password" required placeholder="Nhập mật khẩu">
+        </div>
+        <button type="submit" class="btn-primary">Đăng nhập</button>
+      </form>
+      <div class="form-switch">
+        Chưa có tài khoản? <a href="#" onclick="switchForm('register')">Đăng ký ngay</a>
+      </div>
+    </div>
+
+    <!-- Màn hình Đăng ký -->
+    <div id="register-form-container" class="auth-form-container">
+      <h2>Đăng ký</h2>
+      <p>Tạo tài khoản quản lý mới</p>
+
+      <div id="register-error" class="error-msg"></div>
+      <div id="register-success" class="success-msg"></div>
+
+      <form id="register-form">
+        <div class="form-group">
+          <label>Tài khoản</label>
+          <input type="text" id="register-username" required placeholder="Tên tài khoản viết liền">
+        </div>
+        <div class="form-group">
+          <label>Mật khẩu</label>
+          <input type="password" id="register-password" required placeholder="Nhập mật khẩu">
+        </div>
+        <button type="submit" class="btn-primary">Đăng ký</button>
+      </form>
+      <div class="form-switch">
+        Đã có tài khoản? <a href="#" onclick="switchForm('login')">Đăng nhập</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>

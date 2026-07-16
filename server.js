@@ -13,10 +13,31 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'thuc-don.html'));
-});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Thay đổi trang chủ
+app.get('/', (req, res) => {
+  res.redirect('/quan-ly.html');
+});
+
+// Đường dẫn cho các bàn (VD: datmonban1)
+app.get('/:slug', async (req, res, next) => {
+  const slug = req.params.slug;
+  // Bỏ qua các file tĩnh hoặc API
+  if (slug.includes('.') || slug === 'api' || slug === 'auth') return next();
+  
+  try {
+    const table = await db.getTableByQrToken(slug);
+    if (table) {
+      res.redirect(`/dat-mon.html?qr_token=${slug}`);
+    } else {
+      res.status(404).send('<h2>Bàn không tồn tại hoặc sai đường dẫn.</h2>');
+    }
+  } catch (err) {
+    next(err);
+  }
+});
 
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
@@ -62,13 +83,11 @@ wss.on('connection', (ws) => {
 });
 
 // --- REST API ENDPOINTS ---
-
 app.use('/api', createApiRouter(broadcast));
 
 // Khởi chạy server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
-  // Đảm bảo database đã khởi tạo
   await db.initDb();
   console.log(`Server is running on http://localhost:${PORT}`);
 });

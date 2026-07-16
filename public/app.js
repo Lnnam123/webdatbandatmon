@@ -80,11 +80,11 @@ function showWelcomeScreen() {
 
   // Seeded simulation tables
   const tables = [
-    { name: 'Bàn 1 (Trống / Sẵn sàng)', token: 'ban01_token_xyz' },
-    { name: 'Bàn 2 (Thử nghiệm)', token: 'ban02_token_abc' },
-    { name: 'Bàn 3 (Thử nghiệm)', token: 'ban03_token_def' },
-    { name: 'Bàn 4 (Thử nghiệm)', token: 'ban04_token_ghi' },
-    { name: 'Bàn 5 (Thử nghiệm)', token: 'ban05_token_jkl' }
+    { name: 'Bàn 1 (Trống / Sẵn sàng)', token: 'datmonban1' },
+    { name: 'Bàn 2 (Thử nghiệm)', token: 'datmonban2' },
+    { name: 'Bàn 3 (Thử nghiệm)', token: 'datmonban3' },
+    { name: 'Bàn 4 (Thử nghiệm)', token: 'datmonban4' },
+    { name: 'Bàn 5 (Thử nghiệm)', token: 'datmonban5' }
   ];
 
   simulatedTables.innerHTML = '';
