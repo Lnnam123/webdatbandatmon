@@ -97,8 +97,8 @@ export async function initDb() {
         gia_ban DOUBLE NOT NULL,
         trang_thai VARCHAR(50) NOT NULL DEFAULT 'cooking',
         ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (id_don_hang) REFERENCES don_hang(id),
-        FOREIGN KEY (id_mon_an) REFERENCES thuc_don(id)
+        FOREIGN KEY (id_don_hang) REFERENCES don_hang(id) ON DELETE CASCADE,
+        FOREIGN KEY (id_mon_an) REFERENCES thuc_don(id) ON DELETE CASCADE
       )
     `);
 
@@ -280,6 +280,16 @@ export async function addCategory(ma_danh_muc, ten_danh_muc) {
     [ma_danh_muc, ten_danh_muc]
   );
   return result.insertId;
+}
+
+export async function deleteCategory(ma_danh_muc) {
+  await dbRun('DELETE FROM danh_muc WHERE ma_danh_muc = ?', [ma_danh_muc]);
+}
+
+export async function deleteMenuItems(ids) {
+  if (!ids || ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(',');
+  await dbRun(`DELETE FROM thuc_don WHERE id IN (${placeholders})`, ids);
 }
 
 export async function getChefActiveItems() {

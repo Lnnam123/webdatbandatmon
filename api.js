@@ -295,6 +295,47 @@ export default function createApiRouter(broadcast) {
     }
   });
 
+  // 4f. Xoá món ăn (nhiều món hoặc 1 món)
+  router.delete('/menu', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      const { ids } = req.body;
+      if (!ids || !Array.isArray(ids)) {
+        return res.status(400).json({ error: 'Thiếu danh sách ID món ăn cần xoá' });
+      }
+
+      await db.deleteMenuItems(ids);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // 4g. Xoá danh mục
+  router.delete('/categories/:ma', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      await db.deleteCategory(req.params.ma);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
   // 7. Lấy dữ liệu cho Thu ngân (Trạng thái toàn bộ bàn ăn)
   router.get('/cashier/tables', async (req, res) => {
     try {

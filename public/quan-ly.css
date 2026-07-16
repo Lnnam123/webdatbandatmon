@@ -5,6 +5,7 @@
   --primary-hover: #e85a23;
   --success: #10b981;
   --warning: #f59e0b;
+  --danger: #ef4444;
   --bg-main: #f8fafc;
   --bg-card: #ffffff;
   --border-color: rgba(0, 0, 0, 0.08);
@@ -261,6 +262,7 @@ body {
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   font-weight: 600;
   transition: background 0.2s ease;
@@ -278,6 +280,7 @@ body {
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   font-weight: 600;
   transition: all 0.2s ease;

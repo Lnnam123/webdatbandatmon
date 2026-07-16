@@ -24,6 +24,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadMenuData();
   loadTablesData();
   loadOverviewData();
+
+  // Tìm kiếm thực đơn
+  const searchInput = document.getElementById('menu-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase().trim();
+      const filtered = menuData.filter(item => {
+        const code = 'SP' + String(item.id).padStart(6, '0');
+        const matchName = item.name.toLowerCase().includes(term);
+        const matchCode = code.toLowerCase().includes(term);
+        return matchName || matchCode;
+      });
+      renderMenuTable(filtered);
+    });
+  }
+});
+
+// Custom Confirm Modal Logic
+let confirmActionCallback = null;
+
+function showConfirmModal(message) {
+  return new Promise((resolve) => {
+    document.getElementById('confirm-modal-message').textContent = message;
+    document.getElementById('confirm-modal').style.display = 'flex';
+    confirmActionCallback = resolve;
+  });
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirm-modal').style.display = 'none';
+  if (confirmActionCallback) {
+    confirmActionCallback(false);
+    confirmActionCallback = null;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('confirm-modal-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      document.getElementById('confirm-modal').style.display = 'none';
+      if (confirmActionCallback) {
+        confirmActionCallback(true);
+        confirmActionCallback = null;
+      }
+    });
+  }
 });
 
 function formatPrice(num) {
@@ -101,8 +148,7 @@ function renderMenuTable(data) {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="checkbox"></td>
-      <td style="color:#fadb14;">☆</td>
+      <td><input type="checkbox" class="row-checkbox" value="${item.id}" onchange="toggleDeleteButton()"></td>
       <td>
         <img src="${item.image_url ? (item.image_url.startsWith('http') ? item.image_url : '/assets/' + item.image_url) : 'https://via.placeholder.com/32'}" class="item-img-small" />
       </td>
@@ -113,12 +159,29 @@ function renderMenuTable(data) {
       <td>3%</td>
       <td style="text-align:right; font-weight:600;">${formatPrice(item.price)}</td>
       <td style="text-align:center;">
-        <svg onclick="editMenu(${item.id})" style="cursor:pointer; color:var(--text-secondary);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <svg onclick="editMenu(${item.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <svg onclick="deleteMenu(${item.id})" style="cursor:pointer; color:var(--danger);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+function toggleDeleteButton() {
+  const anyChecked = document.querySelectorAll('.row-checkbox:checked').length > 0;
+  document.getElementById('btn-delete-selected').style.display = anyChecked ? 'inline-block' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const selectAll = document.getElementById('selectAll-checkbox');
+  if(selectAll) {
+    selectAll.addEventListener('change', (e) => {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => cb.checked = e.target.checked);
+      toggleDeleteButton();
+    });
+  }
+});
 
 function openAddMenuModal() {
   document.getElementById('edit-menu-id').value = '';
@@ -221,12 +284,113 @@ async function submitAddCategory() {
       document.getElementById('add-category-modal').style.display = 'none';
       showToast('Thêm nhóm món thành công!');
       await loadCategories();
+      loadMenuData();
     } else {
       alert(data.error || 'Lỗi thêm nhóm');
     }
   } catch (err) {
     console.error(err);
     alert('Lỗi kết nối máy chủ');
+  }
+}
+
+function openDeleteCategoryModal() {
+  const select = document.getElementById('delete-loai-mon');
+  select.innerHTML = '';
+  categoriesData.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat.ma_danh_muc;
+    opt.textContent = cat.ten_danh_muc;
+    select.appendChild(opt);
+  });
+  document.getElementById('delete-category-modal').style.display = 'flex';
+}
+
+async function submitDeleteCategory() {
+  const ma_danh_muc = document.getElementById('delete-loai-mon').value;
+  if (!ma_danh_muc) return;
+
+  const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá nhóm món này? Các món ăn trong nhóm này sẽ bị mất phân loại.');
+  if (!confirmed) return;
+
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/categories/' + ma_danh_muc, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    
+    if (res.ok) {
+      document.getElementById('delete-category-modal').style.display = 'none';
+      showToast('Xoá nhóm món thành công!');
+      await loadCategories();
+      loadMenuData();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Lỗi xoá nhóm');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
+}
+
+async function deleteMenu(id) {
+  const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá món ăn này? Hành động này không thể hoàn tác.');
+  if (!confirmed) return;
+  
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/menu', {
+      method: 'DELETE',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ ids: [id] })
+    });
+    if (res.ok) {
+      showToast('Đã xoá món ăn');
+      loadMenuData();
+    } else {
+      alert('Lỗi khi xoá món');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi máy chủ');
+  }
+}
+
+async function deleteSelectedMenu() {
+  const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+  if (checkboxes.length === 0) return;
+  
+  const confirmed = await showConfirmModal(`Bạn có chắc chắn muốn xoá ${checkboxes.length} món ăn đã chọn?`);
+  if (!confirmed) return;
+  
+  const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/menu', {
+      method: 'DELETE',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ ids })
+    });
+    if (res.ok) {
+      showToast(`Đã xoá ${ids.length} món ăn`);
+      const selectAll = document.getElementById('selectAll-checkbox');
+      if (selectAll) selectAll.checked = false;
+      document.getElementById('btn-delete-selected').style.display = 'none';
+      loadMenuData();
+    } else {
+      alert('Lỗi khi xoá món');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi máy chủ');
   }
 }
 
