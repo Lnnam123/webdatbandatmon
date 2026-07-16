@@ -1,115 +1,181 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Thực đơn gọi món - QR Order</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
 
-  <!-- Header -->
-  <header>
-    <a href="#" class="logo">
-      <span>Glow</span>Bites
-    </a>
-    <div class="header-status" id="header-status-area" style="display: none;">
-      <span class="status-badge" id="table-number-badge">
-        <span class="status-dot"></span> Bàn: Loading...
-      </span>
-    </div>
-  </header>
+<body>
 
   <!-- Main Container -->
   <main id="main-content">
-    
+
     <!-- Màn hình chờ quét QR (Nếu không có qr_token trên URL) -->
     <div id="welcome-screen" class="glass-card" style="text-align: center; max-width: 500px; margin: 40px auto;">
       <div style="margin-bottom: 20px; color: var(--primary);">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
       </div>
       <h2 style="margin-bottom: 12px; font-weight: 800;">Chào mừng quý khách!</h2>
       <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; line-height: 1.6;">
         Vui lòng quét mã QR tại bàn để bắt đầu chọn món và trải nghiệm dịch vụ tự động của chúng tôi.
       </p>
-      
+
       <div style="border-top: 1px solid var(--border-color); padding-top: 24px;">
-        <h4 style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--primary);">
+        <h4
+          style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--primary);">
           Giả lập quét mã QR (Chọn bàn để thử nghiệm):
         </h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px;" id="simulated-tables">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px;"
+          id="simulated-tables">
           <!-- Sẽ được điền bằng Javascript -->
           <p style="font-size: 13px; color: var(--text-secondary);">Đang tải sơ đồ bàn ăn...</p>
         </div>
       </div>
 
       <div style="border-top: 1px solid var(--border-color); padding-top: 24px; margin-top: 32px;">
-        <h4 style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--primary);">
+        <h4
+          style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--primary);">
           Dành cho nhân viên:
         </h4>
         <div style="display: flex; gap: 12px; justify-content: center;">
-          <a href="thu-ngan.html" class="btn btn-outline" style="flex: 1; color: var(--primary);"><svg style="margin-right:8px;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Thu ngân</a>
-          <a href="dau-bep.html" class="btn btn-outline" style="flex: 1; color: var(--primary);"><svg style="margin-right:8px;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"></path><line x1="6" y1="17" x2="18" y2="17"></line></svg> Đầu bếp</a>
+          <a href="thu-ngan.html" class="btn btn-outline" style="flex: 1; color: var(--primary);"><svg
+              style="margin-right:8px;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg> Thu ngân</a>
+          <a href="dau-bep.html" class="btn btn-outline" style="flex: 1; color: var(--primary);"><svg
+              style="margin-right:8px;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z">
+              </path>
+              <line x1="6" y1="17" x2="18" y2="17"></line>
+            </svg> Đầu bếp</a>
         </div>
       </div>
     </div>
 
     <!-- Màn hình đặt món (Chỉ hiển thị khi đã verify QR) -->
     <div id="ordering-screen" style="display: none;">
-      
+
       <!-- KiotViet Style Banner -->
       <div class="kiot-header">
-        <div style="font-size: 14px; font-weight: 500; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path><path d="M9 18c-4.51 2-5-2-7-2"></path></svg> <span>Camera</span></div>
+        <div
+          style="font-size: 14px; font-weight: 500; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4">
+            </path>
+            <path d="M9 18c-4.51 2-5-2-7-2"></path>
+          </svg> <span>Camera</span>
+        </div>
         <div class="kiot-table-name" id="kiot-table-name"></div>
         <div class="kiot-header-actions">
-          <button class="kiot-search-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></button>
+          <button class="kiot-search-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg></button>
           <button class="kiot-action-btn">
-            <span style="display: flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg> Gọi nhân viên</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path
+                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                </path>
+              </svg> Gọi nhân viên</span>
             <div class="kiot-divider"></div>
-            <span style="display: flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Món đã gọi</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg> Món đã gọi</span>
           </button>
         </div>
       </div>
 
-      </div>
+    </div>
 
-      <!-- Categories Navigation -->
-      <div class="kiot-categories-container" id="categories-list">
-        <button class="kiot-category-tab active" data-category="all">Tất cả</button>
-        <button class="kiot-category-tab" data-category="appetizer">Đồ ăn</button>
-        <button class="kiot-category-tab" data-category="drink">Đồ uống</button>
-        <button class="kiot-category-tab" data-category="dessert">Tráng miệng</button>
-        <button class="kiot-category-tab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
-      </div>
+    <!-- Categories Navigation -->
+    <div class="kiot-categories-container" id="categories-list">
+      <button class="kiot-category-tab active" data-category="all">Tất cả</button>
+      <button class="kiot-category-tab" data-category="appetizer">Đồ ăn</button>
+      <button class="kiot-category-tab" data-category="drink">Đồ uống</button>
+      <button class="kiot-category-tab" data-category="dessert">Tráng miệng</button>
+      <button class="kiot-category-tab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg></button>
+    </div>
 
-      <div class="kiot-filter-row">
-        <span id="total-menu-items" style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Tất cả món</span>
-        <div class="kiot-view-toggle">
-          <button class="active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></button>
-          <button><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></button>
-        </div>
+    <div class="kiot-filter-row">
+      <span id="total-menu-items" style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Tất cả
+        món</span>
+      <div class="kiot-view-toggle">
+        <button class="active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg></button>
+        <button><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg></button>
       </div>
+    </div>
 
-      <div class="kiot-group-title" id="kiot-group-title" style="font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; margin-top: 16px;">TẤT CẢ</div>
+    <div class="kiot-group-title" id="kiot-group-title"
+      style="font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; margin-top: 16px;">TẤT
+      CẢ</div>
 
-      <!-- Menu Items List -->
-      <div class="kiot-menu-list" id="menu-items-grid">
-        <!-- Món ăn tự động render -->
-      </div>
+    <!-- Menu Items List -->
+    <div class="kiot-menu-list" id="menu-items-grid">
+      <!-- Món ăn tự động render -->
+    </div>
     </div>
   </main>
 
   <!-- Màn hình khoá chờ thanh toán -->
   <div id="payment-overlay" class="modal-overlay">
-    <div class="glass-card" style="width: 90%; max-width: 450px; padding: 40px 24px; text-align: center; margin: auto; border-radius: var(--radius-lg);">
+    <div class="glass-card"
+      style="width: 90%; max-width: 450px; padding: 40px 24px; text-align: center; margin: auto; border-radius: var(--radius-lg);">
       <div style="margin-bottom: 20px; color: var(--primary); animation: pulseWarning 1.5s infinite;">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
       </div>
       <h2 style="margin-bottom: 12px; font-weight: 800;">Đang chờ thanh toán</h2>
-      <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; line-height: 1.6;" id="payment-overlay-msg">
-        Yêu cầu thanh toán của quý khách đã được gửi đến quầy thu ngân. Vui lòng thanh toán tại quầy. Xin cảm ơn quý khách!
+      <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; line-height: 1.6;"
+        id="payment-overlay-msg">
+        Yêu cầu thanh toán của quý khách đã được gửi đến quầy thu ngân. Vui lòng thanh toán tại quầy. Xin cảm ơn quý
+        khách!
       </p>
-      <div id="payment-overlay-total" style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 24px;">
+      <div id="payment-overlay-total"
+        style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 24px;">
         Tổng tiền: 0đ
       </div>
       <span class="status-badge pending_payment" style="font-size: 14px; padding: 8px 16px;">
@@ -122,7 +188,8 @@
   <div class="kiot-bottom-cart-wrapper" id="cart-bottom-bar" style="display: none;">
     <button class="kiot-btn-primary" id="open-cart-checkout-btn" disabled>
       <span>Xác nhận gọi món</span>
-      <span class="kiot-cart-details"><span id="cart-item-count">0</span> món • <span id="cart-total-price">0đ</span></span>
+      <span class="kiot-cart-details"><span id="cart-item-count">0</span> món • <span
+          id="cart-total-price">0đ</span></span>
     </button>
     <button id="call-checkout-btn" style="display: none;">Ẩn nút yêu cầu thanh toán cũ</button>
   </div>
@@ -132,7 +199,10 @@
     <!-- Header -->
     <div class="kiot-cart-header">
       <button class="kiot-cart-back-btn" id="close-cart-btn">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
         <span>Xác nhận gọi món</span>
       </button>
     </div>
@@ -153,7 +223,8 @@
       <!-- Ghi chú block -->
       <div class="kiot-cart-block">
         <div style="font-weight: 700; margin-bottom: 12px; color: #000;">Thêm lưu ý cho quán</div>
-        <textarea class="kiot-cart-note-input" id="cart-note-input" maxlength="255" placeholder="Cho quán biết thêm về yêu cầu của bạn"></textarea>
+        <textarea class="kiot-cart-note-input" id="cart-note-input" maxlength="255"
+          placeholder="Cho quán biết thêm về yêu cầu của bạn"></textarea>
         <div class="kiot-cart-note-counter"><span id="cart-note-length">0</span>/255</div>
       </div>
     </div>
@@ -164,7 +235,8 @@
         <span style="color: #000;">Tổng tiền (<span id="cart-footer-count">0</span> món)</span>
         <span class="kiot-cart-footer-total" id="modal-cart-total-price">0</span>
       </div>
-      <button class="kiot-btn-primary" id="confirm-order-btn" style="width: 100%; justify-content: center;">Xác nhận</button>
+      <button class="kiot-btn-primary" id="confirm-order-btn" style="width: 100%; justify-content: center;">Xác
+        nhận</button>
     </div>
   </div>
 
@@ -172,7 +244,10 @@
   <div class="kiot-success-modal" id="success-modal" style="display: none;">
     <div class="kiot-success-header">
       <button class="kiot-cart-back-btn">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
         <span>Xác nhận gọi món</span>
       </button>
     </div>
@@ -180,12 +255,17 @@
       <div class="kiot-success-content">
         <div class="kiot-success-icon-wrapper">
           <div class="kiot-success-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
           </div>
         </div>
         <h2 style="font-weight: 800; font-size: 20px; margin-bottom: 8px; color: #000;">Gọi món thành công</h2>
-        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; text-align: center;">Quán sẽ sớm xác nhận yêu cầu gọi<br>món của bạn</p>
-        <button class="kiot-btn-primary" id="success-home-btn" style="width: 100%; justify-content: center;">Về trang chủ (3s)</button>
+        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; text-align: center;">Quán sẽ sớm
+          xác nhận yêu cầu gọi<br>món của bạn</p>
+        <button class="kiot-btn-primary" id="success-home-btn" style="width: 100%; justify-content: center;">Về trang
+          chủ (3s)</button>
       </div>
     </div>
   </div>
@@ -199,9 +279,14 @@
   <div class="kiot-cart-modal" id="search-modal" style="display: none; background: var(--bg-main);">
     <div class="kiot-cart-header" style="display: flex; gap: 12px; align-items: center; padding: 12px 16px;">
       <button class="kiot-cart-back-btn" id="close-search-btn" style="padding:0;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
       </button>
-      <input type="text" id="search-input" placeholder="Tìm kiếm món ăn..." style="flex:1; border:none; background:rgba(0,0,0,0.05); padding:10px 16px; border-radius:8px; font-size:14px; outline:none;" autocomplete="off">
+      <input type="text" id="search-input" placeholder="Tìm kiếm món ăn..."
+        style="flex:1; border:none; background:rgba(0,0,0,0.05); padding:10px 16px; border-radius:8px; font-size:14px; outline:none;"
+        autocomplete="off">
     </div>
     <div class="kiot-cart-body" style="padding: 16px;">
       <div class="kiot-menu-list" id="search-results-list">
@@ -213,25 +298,34 @@
 
   <!-- Call Staff Modal (Bottom Sheet) -->
   <div class="kiot-success-modal" id="call-staff-modal" style="display: none; background: rgba(0,0,0,0.5);">
-    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: #fff; border-top-left-radius: 16px; border-top-right-radius: 16px; display: flex; flex-direction: column; max-height: 90vh;">
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border-color);">
+    <div
+      style="position: absolute; bottom: 0; left: 0; right: 0; background: #fff; border-top-left-radius: 16px; border-top-right-radius: 16px; display: flex; flex-direction: column; max-height: 90vh;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border-color);">
         <h3 style="font-size: 16px; font-weight: 700; color: #000; margin: 0;">Gọi nhân viên</h3>
-        <button id="close-call-staff-btn" style="background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary); line-height: 1;">&times;</button>
+        <button id="close-call-staff-btn"
+          style="background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary); line-height: 1;">&times;</button>
       </div>
       <div style="padding: 16px; overflow-y: auto;">
         <label style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; cursor: pointer;">
-          <input type="radio" name="call_reason" value="Thanh toán" style="width: 20px; height: 20px; accent-color: var(--primary);">
+          <input type="radio" name="call_reason" value="Thanh toán"
+            style="width: 20px; height: 20px; accent-color: var(--primary);">
           <span style="font-size: 15px; color: #000;">Yêu cầu thanh toán</span>
         </label>
         <label style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; cursor: pointer;">
-          <input type="radio" name="call_reason" value="Khác" checked style="width: 20px; height: 20px; accent-color: var(--primary);">
+          <input type="radio" name="call_reason" value="Khác" checked
+            style="width: 20px; height: 20px; accent-color: var(--primary);">
           <span style="font-size: 15px; color: #000;">Hỗ trợ khác</span>
         </label>
         <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-          <textarea id="call-staff-note" maxlength="225" style="width: 100%; border: none; resize: none; outline: none; font-family: inherit; font-size: 14px; min-height: 60px;" placeholder="Ví dụ: Thêm khăn giấy, nước chấm..."></textarea>
+          <textarea id="call-staff-note" maxlength="225"
+            style="width: 100%; border: none; resize: none; outline: none; font-family: inherit; font-size: 14px; min-height: 60px;"
+            placeholder="Ví dụ: Thêm khăn giấy, nước chấm..."></textarea>
         </div>
-        <div style="text-align: right; font-size: 12px; color: var(--text-secondary); margin-bottom: 24px;"><span id="call-staff-note-length">0</span>/225</div>
-        <button class="kiot-btn-primary" id="submit-call-staff-btn" style="width: 100%; justify-content: center;">Gọi nhân viên</button>
+        <div style="text-align: right; font-size: 12px; color: var(--text-secondary); margin-bottom: 24px;"><span
+            id="call-staff-note-length">0</span>/225</div>
+        <button class="kiot-btn-primary" id="submit-call-staff-btn" style="width: 100%; justify-content: center;">Gọi
+          nhân viên</button>
       </div>
     </div>
   </div>
@@ -240,7 +334,10 @@
   <div class="kiot-cart-modal" id="ordered-items-modal" style="display: none;">
     <div class="kiot-cart-header">
       <button class="kiot-cart-back-btn" id="close-ordered-btn">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
         <span>Món đã gọi</span>
       </button>
     </div>
@@ -257,4 +354,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

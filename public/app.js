@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function showWelcomeScreen() {
   welcomeScreen.style.display = 'block';
   orderingScreen.style.display = 'none';
-  headerStatusArea.style.display = 'none';
+  if (headerStatusArea) headerStatusArea.style.display = 'none';
   cartBottomBar.style.display = 'none';
 
   // Seeded simulation tables
@@ -137,7 +137,7 @@ async function initApp(qrToken) {
     // Hiển thị giao diện đặt món
     welcomeScreen.style.display = 'none';
     orderingScreen.style.display = 'block';
-    headerStatusArea.style.display = 'flex';
+    if (headerStatusArea) headerStatusArea.style.display = 'flex';
     cartBottomBar.style.display = 'flex';
 
     // Cập nhật Header Table Badge
@@ -168,7 +168,7 @@ async function initApp(qrToken) {
 
 // UPDATE STATUS CLASS
 function updateTableStatusUi(status) {
-  tableNumberBadge.className = `status-badge ${status}`;
+  if (tableNumberBadge) tableNumberBadge.className = `status-badge ${status}`;
 }
 
 // INIT WEBSOCKET
@@ -718,43 +718,70 @@ function openOrderedItems() {
   if (countEl) countEl.textContent = totalItems;
   if (totalEl) totalEl.textContent = formatPrice(totalPrice);
 
-  // Parse time
-  const timeStr = new Date(state.activeOrder.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-  let itemsHtml = '';
+  // Group items by time
+  const groups = {};
   state.activeOrder.items.forEach(item => {
-    let badgeClass = 'kiot-badge-pending';
-    let badgeText = 'Chờ xác nhận';
-    if (item.status === 'cooking') {
-      badgeClass = 'kiot-badge-cooking';
-      badgeText = 'Đang chế biến';
-    } else if (item.status === 'done') {
-      badgeClass = 'kiot-badge-done';
-      badgeText = 'Đã phục vụ';
-    }
+    let timestamp = item.created_at || state.activeOrder.created_at;
+    if (!timestamp.endsWith('Z')) timestamp += 'Z';
+    const dateObj = new Date(timestamp);
+    const timeKey = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-    itemsHtml += `
-      <div class="kiot-order-item-row">
-        <div style="font-size: 14px; font-weight: 600; width: 24px;">${item.quantity}x</div>
-        <div class="kiot-order-item-name">
-          ${item.name}
+    if (!groups[timeKey]) {
+      groups[timeKey] = {
+        time: timeKey,
+        items: [],
+        totalItems: 0,
+        totalPrice: 0,
+        timestamp: dateObj.getTime()
+      };
+    }
+    groups[timeKey].items.push(item);
+    groups[timeKey].totalItems += item.quantity;
+    groups[timeKey].totalPrice += (item.price * item.quantity);
+  });
+
+  let allGroupsHtml = '';
+  Object.values(groups).sort((a,b) => b.timestamp - a.timestamp).forEach(g => {
+    let itemsHtml = '';
+    g.items.forEach((item, index) => {
+      let badgeClass = 'kiot-badge-pending';
+      let badgeText = 'Chờ xác nhận';
+      if (item.status === 'cooking') {
+        badgeClass = 'kiot-badge-cooking';
+        badgeText = 'Đang chế biến';
+      } else if (item.status === 'done') {
+        badgeClass = 'kiot-badge-done';
+        badgeText = 'Đã phục vụ';
+      }
+      
+      const isLast = index === g.items.length - 1;
+      const borderStyle = isLast ? '' : 'border-bottom: 1px solid #f0f0f0;';
+
+      itemsHtml += `
+        <div class="kiot-order-item-row" style="display: flex; align-items: center; padding: 12px 0; ${borderStyle}">
+          <div style="font-size: 14px; font-weight: 500; width: 28px; color: var(--text-secondary);">${item.quantity}x</div>
+          <div class="kiot-order-item-name" style="flex: 1; font-size: 15px; font-weight: 500; color: #333;">
+            ${item.name}
+          </div>
+          <div class="kiot-order-badge ${badgeClass}" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${badgeText}</div>
         </div>
-        <div class="kiot-order-badge ${badgeClass}">${badgeText}</div>
+      `;
+    });
+
+    allGroupsHtml += `
+      <div class="kiot-order-group" style="background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <div class="kiot-order-group-header" style="display: flex; justify-content: space-between; font-weight: 700; font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; color: #000;">
+          <span>${g.time} | ${g.totalItems} món</span>
+          <span>${formatPrice(g.totalPrice)}</span>
+        </div>
+        <div class="kiot-order-group-items">
+          ${itemsHtml}
+        </div>
       </div>
     `;
   });
 
-  body.innerHTML = `
-    <div class="kiot-order-group">
-      <div class="kiot-order-group-header">
-        <span>${timeStr} | ${totalItems} món</span>
-        <span>${formatPrice(totalPrice)}</span>
-      </div>
-      <div class="kiot-order-group-items">
-        ${itemsHtml}
-      </div>
-    </div>
-  `;
+  body.innerHTML = allGroupsHtml;
 
   modal.style.display = 'flex';
 }

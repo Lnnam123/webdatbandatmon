@@ -59,6 +59,7 @@ export async function initDb() {
       quantity INTEGER NOT NULL,
       price REAL NOT NULL, -- giá tại thời điểm đặt
       status TEXT NOT NULL DEFAULT 'cooking', -- cooking, done
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES orders(id),
       FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
     )
@@ -123,7 +124,7 @@ export async function createOrder(tableId, sessionToken, cart) {
     const menuItem = await dbGet('SELECT price FROM menu_items WHERE id = ?', [item.id]);
     if (menuItem) {
       await dbRun(
-        'INSERT INTO order_items (order_id, menu_item_id, quantity, price, status) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO order_items (order_id, menu_item_id, quantity, price, status, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
         [orderId, item.id, item.quantity, menuItem.price, 'cooking']
       );
     }
@@ -147,7 +148,7 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
   if (!order) return null;
 
   const items = await dbAll(
-    `SELECT oi.id as order_item_id, oi.quantity, oi.price, oi.status, mi.id as menu_item_id, mi.name, mi.image_url, mi.category 
+    `SELECT oi.id as order_item_id, oi.quantity, oi.price, oi.status, oi.created_at, mi.id as menu_item_id, mi.name, mi.image_url, mi.category 
      FROM order_items oi
      JOIN menu_items mi ON oi.menu_item_id = mi.id
      WHERE oi.order_id = ?`,
