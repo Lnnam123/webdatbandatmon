@@ -25,19 +25,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadTablesData();
   loadOverviewData();
 
-  // Tìm kiếm thực đơn
+  // Tìm kiếm và lọc thực đơn
   const searchInput = document.getElementById('menu-search-input');
+  const filterSelect = document.getElementById('filter-category');
   if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const term = e.target.value.toLowerCase().trim();
-      const filtered = menuData.filter(item => {
-        const code = 'SP' + String(item.id).padStart(6, '0');
-        const matchName = item.name.toLowerCase().includes(term);
-        const matchCode = code.toLowerCase().includes(term);
-        return matchName || matchCode;
-      });
-      renderMenuTable(filtered);
-    });
+    searchInput.addEventListener('input', filterMenuData);
+  }
+  if (filterSelect) {
+    filterSelect.addEventListener('change', filterMenuData);
   }
 
   // Setup Drag & Drop Upload
@@ -144,6 +139,17 @@ async function loadCategories() {
         select.appendChild(opt);
       });
     }
+
+    const filterSelect = document.getElementById('filter-category');
+    if (filterSelect) {
+      filterSelect.innerHTML = '<option value="all">Tất cả nhóm món</option>';
+      categoriesData.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.ma_danh_muc;
+        opt.textContent = cat.ten_danh_muc;
+        filterSelect.appendChild(opt);
+      });
+    }
   } catch (err) {
     console.error('Lỗi tải danh mục', err);
   }
@@ -196,6 +202,21 @@ function renderMenuTable(data) {
     `;
     tbody.appendChild(tr);
   });
+}
+
+function filterMenuData() {
+  const term = (document.getElementById('menu-search-input')?.value || '').toLowerCase().trim();
+  const catFilter = document.getElementById('filter-category')?.value || 'all';
+
+  const filtered = menuData.filter(item => {
+    const code = 'SP' + String(item.id).padStart(6, '0');
+    const matchName = item.name.toLowerCase().includes(term);
+    const matchCode = code.toLowerCase().includes(term);
+    const matchCat = catFilter === 'all' || item.category === catFilter;
+    
+    return (matchName || matchCode) && matchCat;
+  });
+  renderMenuTable(filtered);
 }
 
 function toggleDeleteButton() {

@@ -81,29 +81,11 @@
         
         <!-- SIDEBAR FILTER -->
         <aside class="kv-sidebar">
+
           <div class="kv-filter-group">
-            <div class="kv-filter-title">Chi nhánh</div>
-            <select class="kv-select">
-              <option>Chi nhánh trung tâm</option>
-            </select>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Loại thực đơn</div>
-            <label class="kv-filter-item"><input type="checkbox"> Đồ ăn</label>
-            <label class="kv-filter-item"><input type="checkbox"> Đồ uống</label>
-            <label class="kv-filter-item"><input type="checkbox"> Dịch vụ</label>
-            <label class="kv-filter-item"><input type="checkbox"> Khác</label>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Loại món</div>
-            <select class="kv-select">
-              <option>Chọn loại món</option>
-            </select>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title" style="display:flex; justify-content:space-between;">Nhóm món <a href="#" style="color:var(--primary); font-size:12px; font-weight:600; text-decoration:none;">Tạo mới</a></div>
-            <select class="kv-select">
-              <option>Chọn nhóm món</option>
+            <div class="kv-filter-title" style="display:flex; justify-content:space-between;">Nhóm món <a href="#" style="color:var(--primary); font-size:12px; font-weight:600; text-decoration:none;" onclick="openAddCategoryModal()">Tạo mới</a></div>
+            <select class="kv-select" id="filter-category">
+              <option value="all">Tất cả nhóm món</option>
             </select>
           </div>
           <div class="kv-filter-group">
