@@ -182,7 +182,7 @@ function renderMenuTable(data) {
     // Map category
     let categoryName = 'Khác';
     const cat = categoriesData.find(c => c.ma_danh_muc === item.category);
-    if(cat) categoryName = cat.ten_danh_muc;
+    if (cat) categoryName = cat.ten_danh_muc;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -213,7 +213,6 @@ function filterMenuData() {
     const matchName = item.name.toLowerCase().includes(term);
     const matchCode = code.toLowerCase().includes(term);
     const matchCat = catFilter === 'all' || item.category === catFilter;
-    
     return (matchName || matchCode) && matchCat;
   });
   renderMenuTable(filtered);
@@ -226,7 +225,7 @@ function toggleDeleteButton() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const selectAll = document.getElementById('selectAll-checkbox');
-  if(selectAll) {
+  if (selectAll) {
     selectAll.addEventListener('change', (e) => {
       const checkboxes = document.querySelectorAll('.row-checkbox');
       checkboxes.forEach(cb => cb.checked = e.target.checked);
@@ -241,12 +240,12 @@ function openAddMenuModal() {
   document.getElementById('new-ten-mon').value = '';
   document.getElementById('new-gia-tien').value = '';
   document.getElementById('new-anh-minh-hoa').value = '';
-  
+
   document.getElementById('preview-anh-minh-hoa').src = '';
   document.getElementById('preview-anh-minh-hoa').style.display = 'none';
   document.getElementById('upload-icon-svg').style.display = 'block';
   document.getElementById('upload-title-text').style.display = 'block';
-  
+
   document.getElementById('preview-anh-minh-hoa').dataset.oldImage = '';
   if (categoriesData.length > 0) document.getElementById('new-loai-mon').value = categoriesData[0].ma_danh_muc;
   document.getElementById('add-menu-modal').style.display = 'flex';
@@ -261,9 +260,9 @@ function editMenu(id) {
   document.getElementById('new-loai-mon').value = item.category;
   document.getElementById('new-gia-tien').value = item.price;
   document.getElementById('new-anh-minh-hoa').value = '';
-  
+
   const imgUrl = item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : '/assets/' + item.image_url) : '';
-  
+
   if (imgUrl) {
     document.getElementById('preview-anh-minh-hoa').src = imgUrl;
     document.getElementById('preview-anh-minh-hoa').style.display = 'block';
@@ -275,9 +274,9 @@ function editMenu(id) {
     document.getElementById('upload-icon-svg').style.display = 'block';
     document.getElementById('upload-title-text').style.display = 'block';
   }
-  
+
   document.getElementById('preview-anh-minh-hoa').dataset.oldImage = item.image_url || '';
-  
+
   document.getElementById('add-menu-modal').style.display = 'flex';
 }
 
@@ -285,7 +284,7 @@ function previewImage(event) {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       document.getElementById('preview-anh-minh-hoa').src = e.target.result;
       document.getElementById('preview-anh-minh-hoa').style.display = 'block';
       document.getElementById('upload-icon-svg').style.display = 'none';
@@ -297,7 +296,7 @@ function previewImage(event) {
 
 function showToast(msg) {
   const toast = document.getElementById('toast-notification');
-  if(toast) {
+  if (toast) {
     document.getElementById('toast-message').textContent = msg;
     toast.style.display = 'block';
     setTimeout(() => toast.style.display = 'none', 3000);
@@ -327,13 +326,13 @@ async function submitAddMenu() {
     if (fileInput.files.length > 0) {
       const formData = new FormData();
       formData.append('image', fileInput.files[0]);
-      
+
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token },
         body: formData
       });
-      
+
       const uploadData = await uploadRes.json();
       if (uploadRes.ok) {
         anh_minh_hoa = uploadData.url;
@@ -349,18 +348,18 @@ async function submitAddMenu() {
 
     const res = await fetch(url, {
       method: method,
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
-      body: JSON.stringify({ 
-        ten_mon, 
-        loai_mon, 
+      body: JSON.stringify({
+        ten_mon,
+        loai_mon,
         gia_tien: parseFloat(gia_tien),
         anh_minh_hoa
       })
     });
-    
+
     const data = await res.json();
     if (res.ok) {
       document.getElementById('add-menu-modal').style.display = 'none';
@@ -394,13 +393,13 @@ async function submitAddCategory() {
   try {
     const res = await fetch('/api/categories', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
       body: JSON.stringify({ ma_danh_muc, ten_danh_muc })
     });
-    
+
     const data = await res.json();
     if (res.ok) {
       document.getElementById('add-category-modal').style.display = 'none';
@@ -441,7 +440,7 @@ async function submitDeleteCategory() {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    
+
     if (res.ok) {
       document.getElementById('delete-category-modal').style.display = 'none';
       showToast('Xoá nhóm món thành công!');
@@ -460,12 +459,12 @@ async function submitDeleteCategory() {
 async function deleteMenu(id) {
   const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá món ăn này? Hành động này không thể hoàn tác.');
   if (!confirmed) return;
-  
+
   const token = localStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/menu', {
       method: 'DELETE',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
@@ -486,16 +485,16 @@ async function deleteMenu(id) {
 async function deleteSelectedMenu() {
   const checkboxes = document.querySelectorAll('.row-checkbox:checked');
   if (checkboxes.length === 0) return;
-  
+
   const confirmed = await showConfirmModal(`Bạn có chắc chắn muốn xoá ${checkboxes.length} món ăn đã chọn?`);
   if (!confirmed) return;
-  
+
   const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
   const token = localStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/menu', {
       method: 'DELETE',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
