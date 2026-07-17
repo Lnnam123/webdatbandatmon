@@ -87,7 +87,8 @@ app.use('/api', createApiRouter(broadcast));
 
 // Khởi chạy server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, async () => {
+server.listen(PORT, '0.0.0.0', async () => {
   await db.initDb();
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running locally on http://localhost:${PORT}`);
+  console.log(`To access from phone on same WiFi, use: http://<Your_IPv4_Address>:${PORT}`);
 });
