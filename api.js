@@ -477,6 +477,9 @@ export default function createApiRouter(broadcast) {
       const { table_number, qr_token } = req.body;
       if (!table_number || !qr_token) return res.status(400).json({ error: 'Thiếu thông tin bàn' });
       await db.addTable(table_number, qr_token);
+      
+      broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
+      
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -490,6 +493,9 @@ export default function createApiRouter(broadcast) {
       const { table_number, qr_token } = req.body;
       if (!table_number || !qr_token) return res.status(400).json({ error: 'Thiếu thông tin bàn' });
       await db.updateTable(id, table_number, qr_token);
+      
+      broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
+      
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -505,6 +511,9 @@ export default function createApiRouter(broadcast) {
       if (table.status !== 'available') return res.status(400).json({ error: 'Bàn đang được sử dụng hoặc chờ thanh toán, không thể xoá' });
       
       await db.deleteTable(id);
+      
+      broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
+      
       res.json({ success: true });
     } catch (err) {
       console.error(err);

@@ -606,8 +606,15 @@ async function submitTable() {
       showToast(id ? 'Cập nhật bàn thành công!' : 'Thêm bàn thành công!');
       loadTablesData();
     } else {
-      const data = await res.json();
-      alert(data.error || 'Lỗi lưu bàn');
+      let errorMsg = 'Lỗi lưu bàn';
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        errorMsg = data.error || errorMsg;
+      } else {
+        errorMsg = `Lỗi ${res.status}: API chưa được cập nhật. Bạn đã khởi động lại Server chưa?`;
+      }
+      alert(errorMsg);
     }
   } catch (err) {
     console.error(err);
@@ -637,14 +644,24 @@ async function deleteTable(id) {
       showToast('Đã xoá bàn');
       loadTablesData();
     } else {
-      const data = await res.json();
-      alert(data.error || 'Không thể xoá bàn này');
+      let errorMsg = 'Không thể xoá bàn này';
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        errorMsg = data.error || errorMsg;
+      } else {
+        errorMsg = `Lỗi ${res.status}: API chưa được cập nhật. Bạn đã khởi động lại Server chưa?`;
+      }
+      alert(errorMsg);
     }
   } catch (err) {
     console.error(err);
     alert('Lỗi kết nối máy chủ');
   }
 }
+
+let revenueChartInstance = null;
+let customersChartInstance = null;
 
 async function loadOverviewData() {
   try {
@@ -655,8 +672,87 @@ async function loadOverviewData() {
     document.getElementById('overview-orders').textContent = data.ordersToday;
     document.getElementById('overview-occupancy').textContent = data.occupancyRate + '%';
     document.getElementById('overview-occupancy-desc').textContent = `${data.activeTables}/${data.totalTables} bàn đang sử dụng`;
+    
+    // Cập nhật text phụ nếu có doanh thu
+    if (data.revenueToday > 0) {
+      document.querySelector('#overview-revenue').nextElementSibling.textContent = 'Hoạt động kinh doanh tốt';
+    }
+    if (data.ordersToday > 0) {
+      document.querySelector('#overview-orders').nextElementSibling.textContent = 'Đang có khách';
+    }
+
+    // Vẽ biểu đồ Chart.js (Dữ liệu mô phỏng 7 ngày qua)
+    renderCharts();
   } catch (err) {
     console.error('Failed to load overview data', err);
+  }
+}
+
+function renderCharts() {
+  // Dữ liệu mô phỏng
+  const labels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  const revenueData = [1500000, 2300000, 1800000, 2900000, 3500000, 4200000, 3800000];
+  const customersData = [15, 22, 18, 30, 45, 52, 40];
+
+  // 1. Biểu đồ Doanh thu (Cột)
+  const ctxRev = document.getElementById('revenueChart');
+  if (ctxRev) {
+    if (revenueChartInstance) revenueChartInstance.destroy();
+    revenueChartInstance = new Chart(ctxRev, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Doanh thu (VNĐ)',
+          data: revenueData,
+          backgroundColor: '#E85A23',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // 2. Biểu đồ Lượng khách hàng (Đường)
+  const ctxCus = document.getElementById('customersChart');
+  if (ctxCus) {
+    if (customersChartInstance) customersChartInstance.destroy();
+    customersChartInstance = new Chart(ctxCus, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Lượng khách',
+          data: customersData,
+          borderColor: '#4caf50',
+          backgroundColor: 'rgba(76, 175, 80, 0.1)',
+          borderWidth: 3,
+          tension: 0.4, // làm cong đường kẻ
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
   }
 }
 

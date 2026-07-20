@@ -446,3 +446,99 @@ body {
   border-radius: 8px;
   margin-bottom: 12px;
 }
+
+/* RESPONSIVE CHO MOBILE */
+@media (max-width: 768px) {
+  /* Header */
+  .kv-header {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 12px;
+    justify-content: center;
+  }
+  .kv-logo {
+    margin-right: 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .kv-nav {
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+  }
+  .kv-nav-item {
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .kv-header-right {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  /* Main Layout */
+  .kv-main {
+    padding: 12px;
+    height: auto;
+    min-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+  
+  /* Dashboard Overview */
+  .kv-dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .kv-dashboard-charts {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  /* Menu Layout (Sidebar & Content) */
+  .kv-menu-layout {
+    flex-direction: column;
+    overflow: visible;
+  }
+  .kv-sidebar {
+    width: 100%;
+    overflow: visible;
+  }
+  .kv-content {
+    overflow: visible;
+  }
+  
+  /* Toolbar */
+  .kv-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .kv-search-bar {
+    width: 100%;
+  }
+  .kv-toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+  .kv-toolbar-actions button {
+    flex: 1;
+    min-width: 130px;
+    padding: 10px;
+    font-size: 13px;
+  }
+  
+  /* Tables */
+  .kv-table th, .kv-table td {
+    padding: 12px 10px;
+    font-size: 13px;
+  }
+  
+  /* Modal responsive */
+  .modal-container {
+    padding: 20px;
+    width: 95%;
+  }
+}
