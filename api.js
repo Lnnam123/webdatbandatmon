@@ -456,5 +456,115 @@ export default function createApiRouter(broadcast) {
     }
   });
 
+  // --- EMPLOYEE MANAGEMENT ---
+  // Middleware xác thực Admin
+  const verifyAdmin = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], SECRET_KEY);
+      if (decoded.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+      req.user = decoded;
+      next();
+    } catch (err) {
+      return res.status(401).json({ error: 'Token invalid' });
+    }
+  };
+
+  // --- TABLE MANAGEMENT ---
+  router.post('/admin/tables', verifyAdmin, async (req, res) => {
+    try {
+      const { table_number, qr_token } = req.body;
+      if (!table_number || !qr_token) return res.status(400).json({ error: 'Thiếu thông tin bàn' });
+      await db.addTable(table_number, qr_token);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server, có thể mã bàn hoặc QR đã tồn tại' });
+    }
+  });
+
+  router.put('/admin/tables/:id', verifyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { table_number, qr_token } = req.body;
+      if (!table_number || !qr_token) return res.status(400).json({ error: 'Thiếu thông tin bàn' });
+      await db.updateTable(id, table_number, qr_token);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.delete('/admin/tables/:id', verifyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const table = await db.getTableById(id);
+      if (!table) return res.status(404).json({ error: 'Bàn không tồn tại' });
+      if (table.status !== 'available') return res.status(400).json({ error: 'Bàn đang được sử dụng hoặc chờ thanh toán, không thể xoá' });
+      
+      await db.deleteTable(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.get('/admin/employees', verifyAdmin, async (req, res) => {
+    try {
+      const users = await db.getAllUsers();
+      res.json(users);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.post('/admin/employees', verifyAdmin, async (req, res) => {
+    try {
+      const { username, password, role } = req.body;
+      if (!username || !password || !role) return res.status(400).json({ error: 'Thiếu thông tin' });
+      const existing = await db.getUserByUsername(username);
+      if (existing) return res.status(400).json({ error: 'Tên đăng nhập đã tồn tại' });
+      const hashed = await bcrypt.hash(password, 10);
+      await db.createUserWithRole(username, hashed, role);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.put('/admin/employees/:id', verifyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password, role } = req.body;
+      let hashed = null;
+      if (password && password.trim() !== '') {
+        hashed = await bcrypt.hash(password, 10);
+      }
+      await db.updateUser(id, hashed, role);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.delete('/admin/employees/:id', verifyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Tránh tự xoá chính mình (chỉ kiểm tra tương đối, admin vẫn có thể có id khác nếu có nhiều admin)
+      if (parseInt(id) === req.user.id) return res.status(400).json({ error: 'Không thể xoá chính mình' });
+      await db.deleteUser(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
   return router;
 }

@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadMenuData();
   loadTablesData();
   loadOverviewData();
+  loadEmployeesData();
 
   // Tìm kiếm và lọc thực đơn
   const searchInput = document.getElementById('menu-search-input');
@@ -522,11 +523,14 @@ document.getElementById('menu-search-input').addEventListener('input', (e) => {
   renderMenuTable(filtered);
 });
 
+let currentTablesData = [];
+
 async function loadTablesData() {
   const tbody = document.getElementById('tables-table-body');
   try {
     const res = await fetch('/api/cashier/tables');
     const data = await res.json();
+    currentTablesData = data;
 
     tbody.innerHTML = '';
     data.forEach(table => {
@@ -541,12 +545,104 @@ async function loadTablesData() {
         <td>${table.table_number}</td>
         <td>${statusText}</td>
         <td>${table.activeOrder ? formatPrice(table.activeOrder.total_amount) : '-'}</td>
+        <td style="text-align:center;">
+          <svg onclick="openTableModal(${table.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          <svg onclick="deleteTable(${table.id})" style="cursor:pointer; color:var(--danger);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+        </td>
       `;
       tbody.appendChild(tr);
     });
   } catch (err) {
     console.error(err);
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:red;">Lỗi tải dữ liệu</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:red;">Lỗi tải dữ liệu</td></tr>`;
+  }
+}
+
+// --- TABLE MANAGEMENT ---
+function openTableModal(id = null) {
+  document.getElementById('edit-table-id').value = id || '';
+  const title = document.getElementById('table-modal-title');
+  const nameInput = document.getElementById('table-name');
+  const qrInput = document.getElementById('table-qr');
+  
+  if (id) {
+    const table = currentTablesData.find(t => t.id === id);
+    if (!table) return;
+    title.textContent = 'Sửa bàn';
+    nameInput.value = table.table_number;
+    qrInput.value = table.qr_token;
+  } else {
+    title.textContent = 'Thêm bàn mới';
+    nameInput.value = '';
+    qrInput.value = '';
+  }
+  
+  document.getElementById('table-modal').style.display = 'flex';
+}
+
+async function submitTable() {
+  const id = document.getElementById('edit-table-id').value;
+  const table_number = document.getElementById('table-name').value.trim();
+  const qr_token = document.getElementById('table-qr').value.trim();
+  
+  if (!table_number || !qr_token) return alert('Vui lòng nhập tên bàn và mã QR');
+  
+  const token = localStorage.getItem('adminToken');
+  const method = id ? 'PUT' : 'POST';
+  const url = id ? '/api/admin/tables/' + id : '/api/admin/tables';
+  
+  try {
+    const res = await fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ table_number, qr_token })
+    });
+    
+    if (res.ok) {
+      document.getElementById('table-modal').style.display = 'none';
+      showToast(id ? 'Cập nhật bàn thành công!' : 'Thêm bàn thành công!');
+      loadTablesData();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Lỗi lưu bàn');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
+}
+
+async function deleteTable(id) {
+  const table = currentTablesData.find(t => t.id === id);
+  if (!table) return;
+  if (table.status !== 'available') {
+    alert('Không thể xoá bàn đang được sử dụng hoặc chờ thanh toán!');
+    return;
+  }
+
+  const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá bàn này?');
+  if (!confirmed) return;
+  
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/admin/tables/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    
+    if (res.ok) {
+      showToast('Đã xoá bàn');
+      loadTablesData();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Không thể xoá bàn này');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
   }
 }
 
@@ -567,4 +663,141 @@ async function loadOverviewData() {
 function logout() {
   localStorage.removeItem('adminToken');
   window.location.href = '/login.html';
+}
+
+// --- EMPLOYEE MANAGEMENT ---
+let employeesData = [];
+
+async function loadEmployeesData() {
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/admin/employees', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (res.ok) {
+      employeesData = await res.json();
+      renderEmployeeTable();
+    }
+  } catch (err) {
+    console.error('Lỗi tải danh sách nhân viên', err);
+  }
+}
+
+function renderEmployeeTable() {
+  const tbody = document.getElementById('employees-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  
+  if (employeesData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Không có dữ liệu</td></tr>`;
+    return;
+  }
+  
+  employeesData.forEach(emp => {
+    let roleText = 'Quản lý';
+    if (emp.role === 'cashier') roleText = 'Thu ngân';
+    if (emp.role === 'chef') roleText = 'Đầu bếp';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>NV${String(emp.id).padStart(4, '0')}</td>
+      <td style="font-weight:600;">${emp.username}</td>
+      <td>${roleText}</td>
+      <td style="text-align:center;">
+        <svg onclick="openEmployeeModal(${emp.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <svg onclick="deleteEmployee(${emp.id})" style="cursor:pointer; color:var(--danger);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function openEmployeeModal(id = null) {
+  document.getElementById('edit-employee-id').value = id || '';
+  const title = document.getElementById('employee-modal-title');
+  const userInput = document.getElementById('employee-username');
+  const passInput = document.getElementById('employee-password');
+  const roleSelect = document.getElementById('employee-role');
+  const pwHint = document.getElementById('employee-pw-hint');
+  
+  if (id) {
+    const emp = employeesData.find(e => e.id === id);
+    if (!emp) return;
+    title.textContent = 'Sửa nhân viên';
+    userInput.value = emp.username;
+    userInput.disabled = true; // Không cho đổi username
+    passInput.value = '';
+    roleSelect.value = emp.role;
+    pwHint.textContent = '(Bỏ trống nếu không muốn đổi)';
+  } else {
+    title.textContent = 'Thêm nhân viên mới';
+    userInput.value = '';
+    userInput.disabled = false;
+    passInput.value = '';
+    roleSelect.value = 'cashier';
+    pwHint.textContent = '';
+  }
+  
+  document.getElementById('employee-modal').style.display = 'flex';
+}
+
+async function submitEmployee() {
+  const id = document.getElementById('edit-employee-id').value;
+  const username = document.getElementById('employee-username').value.trim();
+  const password = document.getElementById('employee-password').value;
+  const role = document.getElementById('employee-role').value;
+  
+  if (!username) return alert('Vui lòng nhập tên đăng nhập');
+  if (!id && !password) return alert('Vui lòng nhập mật khẩu cho nhân viên mới');
+  
+  const token = localStorage.getItem('adminToken');
+  const method = id ? 'PUT' : 'POST';
+  const url = id ? '/api/admin/employees/' + id : '/api/admin/employees';
+  
+  try {
+    const res = await fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ username, password, role })
+    });
+    
+    if (res.ok) {
+      document.getElementById('employee-modal').style.display = 'none';
+      showToast(id ? 'Cập nhật nhân viên thành công!' : 'Thêm nhân viên thành công!');
+      loadEmployeesData();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Lỗi lưu nhân viên');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
+}
+
+async function deleteEmployee(id) {
+  const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá nhân viên này?');
+  if (!confirmed) return;
+  
+  const token = localStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/admin/employees/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    
+    if (res.ok) {
+      showToast('Đã xoá nhân viên');
+      loadEmployeesData();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Không thể xoá nhân viên này');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
 }

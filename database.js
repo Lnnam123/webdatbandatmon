@@ -138,8 +138,40 @@ export async function getUserByUsername(username) {
 export async function createUser(username, password) {
   return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau) VALUES (?, ?)', [username, password]);
 }
+export async function createUserWithRole(username, password, role) {
+  return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, vai_tro) VALUES (?, ?, ?)', [username, password, role]);
+}
+export async function getAllUsers() {
+  return await dbAll('SELECT id, ten_dang_nhap as username, vai_tro as role FROM tai_khoan ORDER BY id ASC');
+}
+export async function deleteUser(id) {
+  return await dbRun('DELETE FROM tai_khoan WHERE id = ?', [id]);
+}
+export async function updateUser(id, password, role) {
+  if (password) {
+    return await dbRun('UPDATE tai_khoan SET mat_khau = ?, vai_tro = ? WHERE id = ?', [password, role, id]);
+  } else {
+    return await dbRun('UPDATE tai_khoan SET vai_tro = ? WHERE id = ?', [role, id]);
+  }
+}
 
 // --- APP FUNCTIONS ---
+export async function getTableById(id) {
+  return await dbGet('SELECT id, ten_ban as table_number, ma_duong_dan as qr_token, trang_thai as status, ma_phien_hien_tai as current_session_token FROM ban_an WHERE id = ?', [id]);
+}
+
+export async function addTable(tableNumber, qrToken) {
+  return await dbRun('INSERT INTO ban_an (ten_ban, ma_duong_dan, trang_thai) VALUES (?, ?, ?)', [tableNumber, qrToken, 'available']);
+}
+
+export async function updateTable(id, tableNumber, qrToken) {
+  return await dbRun('UPDATE ban_an SET ten_ban = ?, ma_duong_dan = ? WHERE id = ?', [tableNumber, qrToken, id]);
+}
+
+export async function deleteTable(id) {
+  return await dbRun('DELETE FROM ban_an WHERE id = ?', [id]);
+}
+
 export async function getTableByQrToken(qrToken) {
   return await dbGet('SELECT id, ten_ban as table_number, ma_duong_dan as qr_token, trang_thai as status, ma_phien_hien_tai as current_session_token FROM ban_an WHERE ma_duong_dan = ?', [qrToken]);
 }
