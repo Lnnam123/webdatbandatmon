@@ -233,6 +233,11 @@ function initWebSocket() {
         // Kích hoạt rung điện thoại nếu được hỗ trợ
         if (navigator.vibrate) navigator.vibrate(200);
       }
+      
+      if (data.item_cancelled_message) {
+        showToast(data.item_cancelled_message, 'error');
+        if (navigator.vibrate) navigator.vibrate(200);
+      }
     } else if (data.type === 'table_pending_payment') {
       state.table.status = 'pending_payment';
       updateTableStatusUi('pending_payment');
@@ -313,7 +318,7 @@ function renderMenu() {
           <div>
             <div class="kiot-item-name">${item.name}</div>
           </div>
-          <div class="kiot-item-actions" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
+          <div class="kiot-item-actions" id="menu-action-${item.id}" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
             <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
             ${actionHtml}
           </div>
@@ -331,6 +336,18 @@ function renderMenu() {
     btn.addEventListener('click', (e) => {
       const id = parseInt(e.currentTarget.getAttribute('data-id'));
       addToCart(id);
+    });
+  });
+  document.querySelectorAll('.inc-qty-btn-menu').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = parseInt(e.currentTarget.getAttribute('data-id'));
+      addToCart(id, false);
+    });
+  });
+  document.querySelectorAll('.dec-qty-btn-menu').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = parseInt(e.currentTarget.getAttribute('data-id'));
+      removeFromCart(id);
     });
   });
   
@@ -351,6 +368,42 @@ function renderMenu() {
 }
 
 // CART MANAGEMENT
+function updateItemCardUI(id) {
+  const actionContainer = document.getElementById(`menu-action-${id}`);
+  if (!actionContainer) return;
+  
+  const menuItem = state.menu.find(m => m.id === id);
+  const cartItem = state.cart.find(c => c.id === id);
+  
+  let actionHtml = '';
+  if (cartItem) {
+    actionHtml = `
+      <div class="kiot-qty-wrapper" style="border-radius: 20px; border: 1px solid #E85A23;">
+        <button class="kiot-qty-btn dec-qty-btn-menu" data-id="${id}" style="color:#E85A23;">-</button>
+        <div class="kiot-qty-value" style="color:#E85A23;">${cartItem.quantity}</div>
+        <button class="kiot-qty-btn inc-qty-btn-menu" data-id="${id}" style="color:#E85A23;">+</button>
+      </div>
+    `;
+  } else {
+    actionHtml = `<button class="kiot-add-btn add-to-cart-btn" data-id="${id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>`;
+  }
+  
+  actionContainer.innerHTML = `
+    <div class="kiot-item-price" style="flex: 1;">${formatPrice(menuItem.price)}</div>
+    ${actionHtml}
+  `;
+  
+  // Re-bind events for this specific card
+  const addBtn = actionContainer.querySelector('.add-to-cart-btn');
+  if (addBtn) addBtn.addEventListener('click', () => addToCart(id));
+  
+  const incBtn = actionContainer.querySelector('.inc-qty-btn-menu');
+  if (incBtn) incBtn.addEventListener('click', () => addToCart(id, false));
+  
+  const decBtn = actionContainer.querySelector('.dec-qty-btn-menu');
+  if (decBtn) decBtn.addEventListener('click', () => removeFromCart(id));
+}
+
 function addToCart(id, showToastMsg = true) {
   if (state.table && state.table.status === 'pending_payment') {
     showToast('Bàn đã bị khoá để chờ thanh toán, không thể đặt thêm món.', 'error');
@@ -377,7 +430,7 @@ function addToCart(id, showToastMsg = true) {
   }
   updateCartUi();
   renderCartModal();
-  renderMenu();
+  updateItemCardUI(id);
 }
 
 function removeFromCart(id) {
@@ -390,7 +443,7 @@ function removeFromCart(id) {
   }
   updateCartUi();
   renderCartModal();
-  renderMenu();
+  updateItemCardUI(id);
 }
 
 function clearCart() {
@@ -591,7 +644,8 @@ function setupEventListeners() {
         body: JSON.stringify({
           table_id: state.table.id,
           session_token: state.table.session_token,
-          cart: state.cart
+          cart: state.cart,
+          note: document.getElementById('cart-note-input') ? document.getElementById('cart-note-input').value : ''
         })
       });
 

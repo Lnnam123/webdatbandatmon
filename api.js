@@ -75,21 +75,18 @@ export default function createApiRouter(broadcast) {
 
   // 2. Đặt món (Tạo đơn hàng)
   router.post('/orders', async (req, res) => {
-    const { table_id, session_token, cart } = req.body;
+    const { table_id, session_token, cart, note } = req.body;
 
     if (!table_id || !session_token || !cart || !cart.length) {
       return res.status(400).json({ error: 'Dữ liệu đơn hàng thiếu hoặc không hợp lệ' });
     }
 
     try {
-      const orderId = await db.createOrder(table_id, session_token, cart);
+      const orderId = await db.createOrder(table_id, session_token, cart, note || '');
       const activeOrder = await db.getActiveOrderForTable(table_id, session_token);
 
-      // Thông báo cho Đầu bếp về món mới
-      broadcast(
-        (info) => info.role === 'chef',
-        { type: 'new_order', table_id, orderId }
-      );
+      // Thông báo cho Đầu bếp về món mới (BỎ QUA - Thu ngân sẽ duyệt trước)
+      // broadcast((info) => info.role === 'chef', { type: 'new_order', table_id, orderId });
 
       // Thông báo cho Thu ngân cập nhật trạng thái bàn
       broadcast(
@@ -378,6 +375,95 @@ export default function createApiRouter(broadcast) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // 7a. Thu ngân xác nhận món (Chuyển từ unconfirmed -> cooking)
+  router.post('/cashier/confirm-orders', async (req, res) => {
+    try {
+      const { table_id } = req.body;
+      if (!table_id) return res.status(400).json({ error: 'Thiếu table_id' });
+
+      const success = await db.confirmOrderItems(table_id);
+      if (success) {
+        // Báo cho bếp biết có món mới cần làm
+        broadcast((info) => info.role === 'chef', { type: 'new_order', table_id });
+        // Cập nhật khách hàng
+        const table = await db.getTableById(table_id);
+        if (table) {
+          const activeOrder = await db.getActiveOrderForTable(table_id, table.current_session_token);
+          broadcast(
+            (info) => info.role === 'customer' && info.tableId === table_id && info.sessionToken === table.current_session_token, 
+            { type: 'order_updated', activeOrder }
+          );
+        }
+        
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ error: 'Không tìm thấy đơn hàng chờ xác nhận' });
+      }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // 7b. Thu ngân hủy món
+  router.post('/cashier/cancel-order-item', async (req, res) => {
+    try {
+      const { order_item_id, reason } = req.body;
+      if (!order_item_id) return res.status(400).json({ error: 'Thiếu order_item_id' });
+
+      await db.cancelOrderItem(order_item_id, reason);
+
+      // Broadcast cho Thu ngân
+      broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
+      
+      // Lấy thông tin table để update customer
+      const itemRow = await db.getOrderItemInfo(order_item_id);
+      if (itemRow) {
+        const activeOrder = await db.getActiveOrderForTable(itemRow.table_id, itemRow.ma_phien);
+        broadcast(
+          (info) => info.role === 'customer' && info.tableId === itemRow.table_id && info.sessionToken === itemRow.ma_phien, 
+          { type: 'order_updated', activeOrder, item_cancelled_message: `Món ăn của bạn vừa bị hủy (Lý do: ${reason})` }
+        );
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi hủy món' });
+    }
+  });
+
+  // 7c. Thu ngân cập nhật số lượng món
+  router.post('/cashier/update-item-qty', async (req, res) => {
+    try {
+      const { order_item_id, quantity } = req.body;
+      if (!order_item_id || quantity === undefined) return res.status(400).json({ error: 'Thiếu dữ liệu' });
+
+      if (quantity < 1) {
+        await db.cancelOrderItem(order_item_id, 'Cập nhật số lượng về 0');
+      } else {
+        await db.updateOrderItemQuantity(order_item_id, quantity);
+      }
+      
+      broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
+      
+      // Lấy thông tin table để update customer
+      const itemRow = await db.getOrderItemInfo(order_item_id);
+      if (itemRow) {
+        const activeOrder = await db.getActiveOrderForTable(itemRow.table_id, itemRow.ma_phien);
+        broadcast(
+          (info) => info.role === 'customer' && info.tableId === itemRow.table_id && info.sessionToken === itemRow.ma_phien, 
+          { type: 'order_updated', activeOrder, item_cancelled_message: 'Thu ngân vừa cập nhật món ăn của bạn.' }
+        );
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi cập nhật số lượng' });
     }
   });
   // 8. Lấy dữ liệu danh sách món ăn (Cho giao diện Quản lý)

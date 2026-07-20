@@ -1,334 +1,336 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Màn hình Thu ngân POS - GlowBites</title>
+  <title>Thu ngân</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="thu-ngan.css">
 </head>
+
 <body>
 
-  <!-- Header -->
-  <header>
-    <a href="#" class="logo">
-      <span>Glow</span>Bites <span>- POS Thu Ngân</span>
-    </a>
-    <div class="header-status">
-      <span class="status-badge available" id="connection-status">
-        <span class="status-dot ping"></span> Hệ thống POS sẵn sàng
-      </span>
-    </div>
-  </header>
+  <!-- Khung bao chính -->
+  <div class="pos-layout">
 
-  <!-- Main Container -->
-  <main>
-    <div class="chef-column-title" style="margin-bottom: 24px;">
-      🖥️ Sơ đồ bàn ăn và Trạng thái phục vụ
-    </div>
-
-    <!-- Table Grid -->
-    <div class="cashier-grid" id="tables-grid">
-      <!-- Bàn ăn sẽ được render ở đây -->
-    </div>
-  </main>
-
-  <!-- Bill details Modal -->
-  <div class="modal-overlay" id="bill-modal">
-    <div class="modal-container" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3 id="bill-modal-title">Hoá đơn chi tiết - Bàn XX</h3>
-        <button class="qty-btn" id="close-bill-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h2 style="font-weight: 800; color: var(--primary);">GLOWBITES RESTAURANT</h2>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Đ/C: 123 Đường Bàn Ăn, Quận 1, TP. HCM</p>
-          <p style="font-size: 12px; color: var(--text-secondary);" id="bill-timestamp">Thời gian: --/--/---- --:--</p>
+    <!-- CỘT TRÁI: DANH SÁCH BÀN -->
+    <div class="pos-left">
+      <!-- Navbar trên cùng của Thu Ngân -->
+      <div class="pos-topbar">
+        <div class="pos-tabs">
+          <div class="pos-tab active"><i class="icon-table"></i> Phòng bàn</div>
+          <div class="pos-tab"><i class="icon-menu"></i> Thực đơn</div>
+          <div class="pos-tab"><i class="icon-order"></i> Đặt gọi món</div>
+          <div class="pos-tab"><i class="icon-delivery"></i> Giao đi</div>
         </div>
-
-        <div class="bill-details" id="bill-items-list">
-          <!-- Chi tiết món ăn hoá đơn -->
+        <div class="pos-search-wrapper">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" class="pos-search" placeholder="Tìm món (F3)">
         </div>
-
-        <div class="bill-row total">
-          <span>Tổng thanh toán</span>
-          <span id="bill-total-price">0đ</span>
+        <div class="pos-top-actions">
+          <button class="pos-icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg></button>
+          <button class="pos-icon-btn">+</button>
+          <div class="pos-user">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            admin
+          </div>
         </div>
       </div>
-      <div class="modal-footer" style="flex-direction: column; gap: 10px;">
-        <button class="btn btn-outline" style="width: 100%;" id="print-bill-btn">
-          🖨️ In hoá đơn giấy (Giả lập)
-        </button>
-        <button class="btn btn-primary" style="width: 100%;" id="confirm-payment-btn">
-          💰 Xác nhận đã thu tiền
-        </button>
+
+      <!-- Khu vực, Bộ lọc -->
+      <div class="pos-filter-bar">
+        <div class="pos-area-tabs">
+          <div class="area-tab active">Tất cả</div>
+          <div class="area-tab">Tầng 1</div>
+          <div class="area-tab">Tầng 2</div>
+          <div class="area-tab">Tầng 3</div>
+          <div class="area-tab">VIP</div>
+        </div>
+
+        <div class="pos-filter-status">
+          <label class="radio-label"><input type="radio" name="table_status" value="all" checked> <span
+              class="radio-custom"></span> Tất cả (<span id="count-all">0</span>)</label>
+          <label class="radio-label"><input type="radio" name="table_status" value="serving"> <span
+              class="radio-custom"></span> Sử dụng (<span id="count-using">0</span>)</label>
+          <label class="radio-label"><input type="radio" name="table_status" value="available"> <span
+              class="radio-custom"></span> Còn trống (<span id="count-empty">0</span>)</label>
+        </div>
+
+        <div class="pos-notification-bell" id="btn-show-unconfirmed" style="display: none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span id="unconfirmed-count">0 lượt gọi món qua QR</span>
+        </div>
+      </div>
+
+      <!-- Grid Bàn -->
+      <div class="pos-tables-grid" id="tables-grid">
+        <!-- Render bằng JS -->
+      </div>
+
+      <div class="pos-footer-left">
+        <label><input type="checkbox"> Mở thực đơn khi chọn bàn</label>
+        <div class="pos-pagination">
+          <button>&lt;</button>
+          <span>1 / 1</span>
+          <button>&gt;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: CHI TIẾT ĐƠN -->
+    <div class="pos-right">
+      <div class="pos-right-header">
+        <div class="pos-table-badge" id="current-table-name">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          </svg>
+          Chưa chọn bàn
+        </div>
+        <div class="pos-customer-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" placeholder="Tìm khách hàng (F4)">
+          <button class="pos-add-btn">+</button>
+        </div>
+      </div>
+
+      <div class="pos-order-items" id="order-items-list">
+        <!-- Món ăn render bằng JS -->
+        <div class="empty-state">Vui lòng chọn một bàn để xem hóa đơn</div>
+      </div>
+
+      <!-- Chân cột phải -->
+      <div class="pos-right-footer">
+        <div class="pos-warning-banner" id="warning-banner" style="display: none;">
+          Bạn vừa cập nhật đơn hàng. Click <b>Thông báo</b> để gửi thông tin chế biến đến bar bếp.
+        </div>
+
+        <div class="pos-total-row">
+          <div class="pos-total-icons">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg> Admin
+          </div>
+          <div class="pos-total-price">
+            Tổng tiền <span class="badge" id="total-qty">0</span> <b id="total-price">0</b>
+          </div>
+        </div>
+
+        <div class="pos-action-buttons">
+          <button class="btn-outline" id="btn-notify-chef">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            Thông báo (F10)
+          </button>
+          <button class="btn-outline" id="btn-print-temp">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            In tạm tính
+          </button>
+          <button class="btn-primary" id="btn-checkout">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="1" x2="12" y2="23"></line>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            Thanh toán (F9)
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Toast Notification -->
+  <!-- MODAL XÁC NHẬN GỌI MÓN (TỪ QR) -->
+  <div class="pos-modal-overlay" id="confirm-orders-modal" style="display: none;">
+    <div class="pos-modal">
+      <div class="pos-modal-header">
+        <h3>Xác nhận gọi món</h3>
+        <button class="close-btn" id="close-confirm-modal">&times;</button>
+      </div>
+
+      <div class="pos-modal-tabs">
+        <div class="modal-tab active">Chưa xác nhận (<span id="unconf-count-modal">0</span>)</div>
+        <div class="modal-tab">Đã xác nhận (0)</div>
+        <div class="modal-tab">Hủy gọi món (0)</div>
+      </div>
+
+      <div class="pos-modal-body" id="unconfirmed-list">
+        <!-- Render by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL XÁC NHẬN GIẢM / HỦY MÓN -->
+  <div class="pos-modal-overlay" id="cancel-qty-modal" style="display: none; z-index: 1050;">
+    <div class="pos-modal" style="width: 450px;">
+      <div class="pos-modal-header">
+        <h3 id="cancel-qty-title">Xác nhận hủy món</h3>
+        <button class="close-btn" onclick="closeCancelQtyModal()">&times;</button>
+      </div>
+      <div class="pos-modal-body" style="background: white; padding: 20px;">
+        <p id="cancel-qty-desc" style="margin-bottom: 20px; color: #374151;">Bạn có chắc chắn muốn hủy món "..." không?
+        </p>
+        <div id="cancel-qty-selector" style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+          <div style="width: 100px; font-weight: 500; color: #374151;">Số lượng giảm</div>
+          <div class="pos-item-qty">
+            <button class="pos-qty-btn" id="cancel-qty-minus">-</button>
+            <span class="pos-qty-val" id="cancel-qty-val">1</span> <span style="color: #6b7280; margin-left: 4px;">/
+              <span id="cancel-qty-max">1</span></span>
+            <button class="pos-qty-btn" id="cancel-qty-plus">+</button>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 24px;">
+          <div style="width: 100px; font-weight: 500; color: #374151;">Lý do hủy</div>
+          <select
+            style="flex: 1; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; font-family: inherit;"
+            id="cancel-qty-reason">
+            <option>Khách đổi ý</option>
+            <option>Khách hủy món</option>
+            <option>Làm sai món</option>
+            <option>Hết nguyên liệu</option>
+          </select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <button class="unconf-btn-cancel" onclick="closeCancelQtyModal()"
+            style="padding: 10px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; color: #374151; font-weight: 500;">
+            Bỏ qua
+          </button>
+          <button class="unconf-btn-confirm"
+            style="padding: 10px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px;"
+            id="cancel-qty-confirm">
+            Chắc chắn
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL TỪ CHỐI YÊU CẦU GỌI MÓN -->
+  <div class="pos-modal-overlay" id="reject-order-modal" style="display: none; z-index: 1050;">
+    <div class="pos-modal" style="width: 450px;">
+      <div class="pos-modal-header">
+        <h3>Từ chối yêu cầu gọi món</h3>
+        <button class="close-btn" onclick="closeRejectOrderModal()">&times;</button>
+      </div>
+      <div class="pos-modal-body" style="background: white; padding: 20px;">
+        <p id="reject-order-desc" style="margin-bottom: 20px; color: #374151;">Hủy yêu cầu gọi món từ Bàn ... Vui lòng
+          nhập lý do phía dưới:</p>
+        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 24px;">
+          <div style="width: 100px; font-weight: 500; color: #374151;">Lý do hủy</div>
+          <select
+            style="flex: 1; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; font-family: inherit;"
+            id="reject-reason-select">
+            <option>Khách không có ở quán</option>
+            <option>Khách đổi ý</option>
+            <option>Hết món</option>
+            <option>Lý do khác</option>
+          </select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <button class="unconf-btn-cancel" onclick="closeRejectOrderModal()"
+            style="padding: 10px 16px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; color: #374151; font-weight: 500;">
+            Bỏ qua
+          </button>
+          <button class="unconf-btn-confirm" id="reject-order-confirm"
+            style="padding: 10px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+            Xác nhận hủy
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL XÁC NHẬN THANH TOÁN -->
+  <div class="pos-modal-overlay" id="checkout-modal" style="display: none; z-index: 1050;">
+    <div class="pos-modal" style="width: 400px;">
+      <div class="pos-modal-header">
+        <h3>Xác nhận thanh toán</h3>
+        <button class="close-btn" onclick="closeCheckoutModal()">&times;</button>
+      </div>
+      <div class="pos-modal-body" style="background: white; padding: 20px;">
+        <p id="checkout-desc" style="margin-bottom: 24px; color: #374151; font-size: 15px; text-align: center;">Xác nhận thanh toán cho Bàn ...?</p>
+        <div style="display: flex; justify-content: center; gap: 12px;">
+          <button class="unconf-btn-cancel" onclick="closeCheckoutModal()"
+            style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; color: #374151; font-weight: 500;">
+            Hủy
+          </button>
+          <button class="unconf-btn-confirm" id="checkout-confirm-btn"
+            style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+            Đồng ý
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
   <div class="toast" id="toast-notification">
     <span id="toast-message">Thông báo!</span>
   </div>
 
-  <script>
-    let tables = [];
-    let selectedTable = null;
-    let socket = null;
+  <div style="display: none;">
+    <div id="invoice-template" class="invoice-container">
+      <div class="invoice-header">
+        <h2>NHÀ HÀNG DATMON</h2>
+        <p>Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội</p>
+        <p>SĐT: 0123 456 789</p>
+        <br>
+        <h3 style="font-size: 18px; margin: 10px 0;">HÓA ĐƠN TẠM TÍNH</h3>
+      </div>
+      <div class="invoice-info">
+        <p><b>Bàn:</b> <span id="inv-table-name">...</span></p>
+        <p><b>Giờ in:</b> <span id="inv-time">...</span></p>
+        <p><b>Thu ngân:</b> Admin</p>
+      </div>
+      <table class="invoice-table">
+        <thead>
+          <tr>
+            <th style="width: 35%">Tên món</th>
+            <th style="width: 10%; text-align: center;">SL</th>
+            <th style="width: 25%; text-align: right; padding-right: 10px;">Đơn giá</th>
+            <th style="width: 30%; text-align: right;">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody id="inv-items">
+          <!-- Items render here -->
+        </tbody>
+      </table>
+      <div class="invoice-footer">
+        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
+          <span>Tổng cộng:</span>
+          <span id="inv-total">0</span>
+        </div>
+        <p style="font-style: italic; text-align: center; font-size: 13px;">Cảm ơn quý khách và hẹn gặp lại!</p>
+        <p style="text-align: center; font-size: 12px; margin-top: 5px;">(Hóa đơn chỉ có giá trị thanh toán trong ngày)</p>
+      </div>
+    </div>
+  </div>
 
-    const tablesGrid = document.getElementById('tables-grid');
-    const connectionStatus = document.getElementById('connection-status');
-    const billModal = document.getElementById('bill-modal');
-    const closeBillBtn = document.getElementById('close-bill-btn');
-    const billModalTitle = document.getElementById('bill-modal-title');
-    const billItemsList = document.getElementById('bill-items-list');
-    const billTotalPrice = document.getElementById('bill-total-price');
-    const billTimestamp = document.getElementById('bill-timestamp');
-    const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
-    const printBillBtn = document.getElementById('print-bill-btn');
-    const toastNotification = document.getElementById('toast-notification');
-    const toastMessage = document.getElementById('toast-message');
-
-    // Format Price
-    function formatPrice(number) {
-      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number || 0);
-    }
-
-    // Show Notification
-    function showToast(message, isSuccess = true) {
-      toastMessage.textContent = message;
-      toastNotification.className = 'toast show';
-      if (isSuccess) toastNotification.classList.add('toast-success');
-      setTimeout(() => {
-        toastNotification.className = 'toast';
-      }, 3000);
-    }
-
-    // Load cashier tables
-    async function loadTables() {
-      try {
-        const res = await fetch('/api/cashier/tables');
-        if (!res.ok) throw new Error('Lỗi fetch tables');
-        tables = await res.json();
-        renderTables();
-        
-        // Cập nhật lại hóa đơn nếu đang mở
-        if (selectedTable) {
-          const updatedTable = tables.find(t => t.id === selectedTable.id);
-          if (updatedTable) {
-            selectedTable = updatedTable;
-            updateBillModalContent();
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        showToast('Không thể tải sơ đồ bàn ăn!', false);
-      }
-    }
-
-    // Render Tables
-    function renderTables() {
-      tablesGrid.innerHTML = '';
-
-      tables.forEach(t => {
-        const card = document.createElement('div');
-        card.className = `table-card ${t.status}`;
-        
-        let statusText = 'Trống';
-        let amountText = '';
-        
-        if (t.status === 'serving') {
-          statusText = 'Đang phục vụ';
-          if (t.active_order) {
-            amountText = formatPrice(t.active_order.total_amount);
-          }
-        } else if (t.status === 'pending_payment') {
-          statusText = '⚠️ Chờ thanh toán';
-          if (t.active_order) {
-            amountText = formatPrice(t.active_order.total_amount);
-          }
-        }
-
-        card.innerHTML = `
-          <div class="table-card-number">${t.table_number}</div>
-          <div class="table-card-status">${statusText}</div>
-          <div class="table-card-amount">${amountText}</div>
-        `;
-
-        card.addEventListener('click', () => {
-          openBillModal(t);
-        });
-
-        tablesGrid.appendChild(card);
-      });
-    }
-
-    // Open Bill Modal
-    function openBillModal(table) {
-      selectedTable = table;
-      
-      if (table.status === 'available') {
-        showToast(`Bàn trống. Chưa có đơn hàng để xem hoá đơn!`, false);
-        return;
-      }
-
-      updateBillModalContent();
-      billModal.classList.add('open');
-    }
-
-    // Update Content inside Bill Modal
-    function updateBillModalContent() {
-      const table = selectedTable;
-      billModalTitle.textContent = `Hoá đơn chi tiết - ${table.table_number}`;
-      
-      const order = table.active_order;
-      if (!order) {
-        billItemsList.innerHTML = '<p style="text-align:center; color:var(--text-secondary);">Không tìm thấy thông tin đơn hàng.</p>';
-        billTotalPrice.textContent = formatPrice(0);
-        confirmPaymentBtn.setAttribute('disabled', 'true');
-        return;
-      }
-
-      billTimestamp.textContent = `Thời gian: ${new Date(order.created_at).toLocaleString('vi-VN')}`;
-
-      billItemsList.innerHTML = '';
-      order.items.forEach(item => {
-        const row = document.createElement('div');
-        row.className = 'bill-row';
-        row.innerHTML = `
-          <div>
-            <strong>${item.name}</strong> 
-            <span style="color:var(--text-secondary); margin-left:6px;">x${item.quantity}</span>
-            <span style="font-size: 11px; display:block; color:var(--text-secondary);">${item.status === 'done' ? '✓ Đã xong' : '⏳ Đang nấu'}</span>
-          </div>
-          <span>${formatPrice(item.price * item.quantity)}</span>
-        `;
-        billItemsList.appendChild(row);
-      });
-
-      billTotalPrice.textContent = formatPrice(order.total_amount);
-
-      // Cho phép thanh toán
-      confirmPaymentBtn.removeAttribute('disabled');
-      if (table.status === 'pending_payment') {
-        confirmPaymentBtn.className = 'btn btn-primary';
-        confirmPaymentBtn.textContent = '💰 Xác nhận thanh toán (Khách chờ)';
-      } else {
-        confirmPaymentBtn.className = 'btn btn-outline';
-        confirmPaymentBtn.textContent = '💰 Thanh toán ngay';
-      }
-    }
-
-    // Init WebSocket for POS Cashier
-    function initWebSocket() {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}`;
-      
-      socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        console.log('Cashier POS connected to WS');
-        socket.send(JSON.stringify({
-          type: 'register',
-          role: 'cashier'
-        }));
-        connectionStatus.className = 'status-badge available';
-        connectionStatus.innerHTML = '<span class="status-dot ping"></span> POS Trực Tuyến';
-      };
-
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log('POS WS Message:', data);
-
-        if (data.type === 'table_status_changed' || data.type === 'checkout_request') {
-          loadTables();
-          
-          if (data.type === 'checkout_request') {
-            const table = tables.find(t => t.id === parseInt(data.table_id));
-            const tableName = table ? table.table_number : `Bàn ID ${data.table_id}`;
-            showToast(`🛎️ ${tableName} yêu cầu thanh toán hóa đơn!`, true);
-            
-            // Âm thanh thông báo
-            try {
-              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-              const oscillator = audioCtx.createOscillator();
-              oscillator.type = 'triangle';
-              oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
-              oscillator.connect(audioCtx.destination);
-              oscillator.start();
-              oscillator.stop(audioCtx.currentTime + 0.3);
-            } catch(e) {}
-          }
-        }
-      };
-
-      socket.onclose = () => {
-        console.log('POS WS closed. Reconnecting...');
-        connectionStatus.className = 'status-badge pending_payment';
-        connectionStatus.innerHTML = '<span class="status-dot"></span> POS Mất Kết Nối';
-        setTimeout(initWebSocket, 5000);
-      };
-    }
-
-    // Bind UI actions
-    closeBillBtn.addEventListener('click', () => {
-      billModal.classList.remove('open');
-      selectedTable = null;
-    });
-
-    // Xác nhận đã thu tiền
-    confirmPaymentBtn.addEventListener('click', async () => {
-      if (!selectedTable) return;
-      
-      confirmPaymentBtn.setAttribute('disabled', 'true');
-      confirmPaymentBtn.textContent = 'Đang thanh toán...';
-
-      try {
-        const res = await fetch('/api/payment/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table_id: selectedTable.id })
-        });
-
-        if (!res.ok) throw new Error('Lỗi thanh toán');
-        
-        showToast(`Đã thanh toán và giải phóng ${selectedTable.table_number}!`, true);
-        billModal.classList.remove('open');
-        selectedTable = null;
-        loadTables();
-      } catch (err) {
-        console.error(err);
-        showToast('Xử lý thanh toán thất bại!', false);
-        confirmPaymentBtn.removeAttribute('disabled');
-      }
-    });
-
-    // In hóa đơn (Giả lập)
-    printBillBtn.addEventListener('click', () => {
-      if (!selectedTable || !selectedTable.active_order) return;
-      
-      const order = selectedTable.active_order;
-      let billText = `GLOWBITES RESTAURANT\n--------------------------\n`;
-      billText += `Bàn: ${selectedTable.table_number}\n`;
-      billText += `Ngày: ${new Date(order.created_at).toLocaleString('vi-VN')}\n`;
-      billText += `--------------------------\n`;
-      
-      order.items.forEach(i => {
-        billText += `${i.name} x${i.quantity}\n`;
-        billText += `                 ${formatPrice(i.price * i.quantity)}\n`;
-      });
-      billText += `--------------------------\n`;
-      billText += `Tổng cộng:       ${formatPrice(order.total_amount)}\n`;
-      billText += `--------------------------\n`;
-      billText += `XIN CẢM ƠN QUÝ KHÁCH!\n`;
-
-      console.log(billText);
-      alert("Đang gửi lệnh in hóa đơn giấy...\n\n" + billText);
-    });
-
-    // Start
-    loadTables();
-    initWebSocket();
-  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="thu-ngan.js"></script>
 </body>
+
 </html>

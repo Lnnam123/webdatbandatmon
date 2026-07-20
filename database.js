@@ -83,10 +83,18 @@ export async function initDb() {
         ma_phien VARCHAR(255) NOT NULL,
         trang_thai VARCHAR(50) NOT NULL DEFAULT 'pending',
         tong_tien DOUBLE DEFAULT 0,
+        ghi_chu TEXT,
         ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (id_ban) REFERENCES ban_an(id)
       )
     `);
+
+    // Tự động thêm cột ghi_chu nếu chưa có (dành cho db đã tạo trước đó)
+    try {
+      await pool.query(`ALTER TABLE don_hang ADD COLUMN ghi_chu TEXT`);
+    } catch (e) {
+      // Bỏ qua lỗi nếu cột đã tồn tại
+    }
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS chi_tiet_don_hang (
@@ -180,30 +188,45 @@ export async function updateTableSession(tableId, sessionToken) {
   return await dbRun('UPDATE ban_an SET ma_phien_hien_tai = ? WHERE id = ?', [sessionToken, tableId]);
 }
 
-export async function createOrder(tableId, sessionToken, cart) {
+export async function createOrder(tableId, sessionToken, cart, note = '') {
+  const table = await dbGet('SELECT trang_thai FROM ban_an WHERE id = ?', [tableId]);
+  if (!table) throw new Error('Bàn không tồn tại');
+
+  const menuItems = await dbAll('SELECT id, gia_tien FROM thuc_don');
+  const priceMap = {};
+  menuItems.forEach(item => priceMap[item.id] = item.gia_tien);
+
   let totalAmount = 0;
-  for (const item of cart) {
-    const menuItem = await dbGet('SELECT gia_tien FROM thuc_don WHERE id = ?', [item.id]);
-    if (menuItem) {
-      totalAmount += menuItem.gia_tien * item.quantity;
-    }
-  }
+  cart.forEach(item => {
+    const p = priceMap[item.id] || 0;
+    totalAmount += p * item.quantity;
+  });
 
   let order = await dbGet(
-    'SELECT id FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid" ORDER BY id DESC LIMIT 1',
+    'SELECT id, tong_tien FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid"',
     [tableId, sessionToken]
   );
 
   let orderId;
-  if (order) {
-    orderId = order.id;
-    await dbRun('UPDATE don_hang SET tong_tien = tong_tien + ? WHERE id = ?', [totalAmount, orderId]);
-  } else {
-    const result = await dbRun(
-      'INSERT INTO don_hang (id_ban, ma_phien, trang_thai, tong_tien) VALUES (?, ?, ?, ?)',
-      [tableId, sessionToken, 'pending', totalAmount]
+  if (!order) {
+    const res = await dbRun(
+      'INSERT INTO don_hang (id_ban, ma_phien, trang_thai, tong_tien, ghi_chu) VALUES (?, ?, ?, ?, ?)',
+      [tableId, sessionToken, 'pending', totalAmount, note]
     );
-    orderId = result.insertId;
+    orderId = res.insertId;
+  } else {
+    orderId = order.id;
+    if (note) {
+      await dbRun(
+        'UPDATE don_hang SET tong_tien = tong_tien + ?, ghi_chu = CONCAT(IFNULL(ghi_chu, ""), " | ", ?) WHERE id = ?',
+        [totalAmount, note, orderId]
+      );
+    } else {
+      await dbRun(
+        'UPDATE don_hang SET tong_tien = tong_tien + ? WHERE id = ?',
+        [totalAmount, orderId]
+      );
+    }
   }
 
   for (const item of cart) {
@@ -211,7 +234,7 @@ export async function createOrder(tableId, sessionToken, cart) {
     if (menuItem) {
       await dbRun(
         'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, so_luong, gia_ban, trang_thai) VALUES (?, ?, ?, ?, ?)',
-        [orderId, item.id, item.quantity, menuItem.gia_tien, 'cooking']
+        [orderId, item.id, item.quantity, menuItem.gia_tien, 'unconfirmed']
       );
     }
   }
@@ -222,7 +245,7 @@ export async function createOrder(tableId, sessionToken, cart) {
 
 export async function getActiveOrderForTable(tableId, sessionToken) {
   const order = await dbGet(
-    'SELECT id, id_ban as table_id, ma_phien as session_token, trang_thai as status, tong_tien as total_amount, ngay_tao as created_at FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid" ORDER BY id DESC LIMIT 1',
+    'SELECT id, id_ban as table_id, ma_phien as session_token, trang_thai as status, tong_tien as total_amount, ngay_tao as created_at, ghi_chu as note FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid" ORDER BY id DESC LIMIT 1',
     [tableId, sessionToken]
   );
   if (!order) return null;
@@ -231,7 +254,7 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
     `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
      FROM chi_tiet_don_hang oi
      JOIN thuc_don mi ON oi.id_mon_an = mi.id
-     WHERE oi.id_don_hang = ?`,
+     WHERE oi.id_don_hang = ? AND oi.trang_thai != 'canceled'`,
     [order.id]
   );
 
@@ -244,10 +267,46 @@ export async function updateOrderItemStatus(orderItemId, status) {
   const item = await dbGet('SELECT id_don_hang FROM chi_tiet_don_hang WHERE id = ?', [orderItemId]);
   if (item) {
     const activeItems = await dbAll('SELECT trang_thai FROM chi_tiet_don_hang WHERE id_don_hang = ?', [item.id_don_hang]);
-    const allDone = activeItems.every(i => i.trang_thai === 'done');
-    if (allDone) {
+    const allDone = activeItems.every(i => i.trang_thai === 'done' || i.trang_thai === 'canceled');
+    if (activeItems.length > 0 && allDone) {
       await dbRun('UPDATE don_hang SET trang_thai = "done" WHERE id = ?', [item.id_don_hang]);
     }
+  }
+}
+
+export async function confirmOrderItems(tableId) {
+  // Tìm đơn hàng đang phục vụ của bàn này
+  const table = await dbGet('SELECT ma_phien_hien_tai FROM ban_an WHERE id = ?', [tableId]);
+  if (!table || !table.ma_phien_hien_tai) return false;
+  const order = await dbGet('SELECT id FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid"', [tableId, table.ma_phien_hien_tai]);
+  if (!order) return false;
+
+  await dbRun('UPDATE chi_tiet_don_hang SET trang_thai = "cooking" WHERE id_don_hang = ? AND trang_thai = "unconfirmed"', [order.id]);
+  return true;
+}
+
+export async function getOrderItemInfo(orderItemId) {
+  return await dbGet('SELECT don_hang.id_ban as table_id, don_hang.ma_phien FROM chi_tiet_don_hang JOIN don_hang ON chi_tiet_don_hang.id_don_hang = don_hang.id WHERE chi_tiet_don_hang.id = ?', [orderItemId]);
+}
+
+export async function cancelOrderItem(orderItemId, cancelReason) {
+  // Lấy thông tin món trước khi hủy
+  const item = await dbGet('SELECT id_don_hang, so_luong, gia_ban FROM chi_tiet_don_hang WHERE id = ?', [orderItemId]);
+  if (item) {
+    const amountToDeduct = item.so_luong * item.gia_ban;
+    await dbRun('UPDATE don_hang SET tong_tien = tong_tien - ? WHERE id = ?', [amountToDeduct, item.id_don_hang]);
+  }
+  // Đổi trạng thái
+  await dbRun('UPDATE chi_tiet_don_hang SET trang_thai = "canceled" WHERE id = ?', [orderItemId]);
+}
+
+export async function updateOrderItemQuantity(orderItemId, quantity) {
+  await dbRun('UPDATE chi_tiet_don_hang SET so_luong = ? WHERE id = ?', [quantity, orderItemId]);
+  const item = await dbGet('SELECT id_don_hang FROM chi_tiet_don_hang WHERE id = ?', [orderItemId]);
+  if (item) {
+    const activeItems = await dbAll('SELECT so_luong, gia_ban FROM chi_tiet_don_hang WHERE id_don_hang = ? AND trang_thai != "canceled"', [item.id_don_hang]);
+    const newTotal = activeItems.reduce((sum, i) => sum + (i.so_luong * i.gia_ban), 0);
+    await dbRun('UPDATE don_hang SET tong_tien = ? WHERE id = ?', [newTotal, item.id_don_hang]);
   }
 }
 
