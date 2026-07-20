@@ -96,7 +96,7 @@ export default function createApiRouter(broadcast) {
 
       // Gửi thông báo cập nhật cho các khách hàng cùng bàn
       broadcast(
-        (info) => info.role === 'customer' && info.tableId === table_id && info.sessionToken === session_token,
+        (info) => info.role === 'customer' && info.tableId == table_id && info.sessionToken === session_token,
         { type: 'order_updated', activeOrder }
       );
 
@@ -126,7 +126,7 @@ export default function createApiRouter(broadcast) {
 
       // Thông báo cho các khách hàng cùng bàn hiển thị màn hình chờ thanh toán
       broadcast(
-        (info) => info.role === 'customer' && info.tableId === table_id,
+        (info) => info.role === 'customer' && info.tableId == table_id,
         { type: 'table_pending_payment' }
       );
 
@@ -153,7 +153,7 @@ export default function createApiRouter(broadcast) {
 
       // Thông báo cho khách hàng cùng bàn reset session & đóng giao diện
       broadcast(
-        (info) => info.role === 'customer' && info.tableId === table_id,
+        (info) => info.role === 'customer' && info.tableId == table_id,
         { type: 'payment_completed' }
       );
 
@@ -192,11 +192,19 @@ export default function createApiRouter(broadcast) {
 
       // Thông báo cho Khách hàng món ăn đã xong
       broadcast(
-        (info) => info.role === 'customer' && info.tableId === table_id && info.sessionToken === session_token,
+        (info) => info.role === 'customer' && info.tableId == table_id && info.sessionToken === session_token,
         { type: 'order_updated', activeOrder, item_completed_id: order_item_id }
       );
 
       // Thông báo cho Thu ngân
+      const item = activeOrder.items.find(i => i.order_item_id === order_item_id);
+      const tableInfo = await db.getTableById(table_id);
+      if (item && tableInfo) {
+        broadcast(
+          (info) => info.role === 'cashier',
+          { type: 'item_cooked_cashier_notify', message: `Bếp đã nấu xong món "${item.name}" tại Bàn ${tableInfo.table_number}!` }
+        );
+      }
       broadcast(
         (info) => info.role === 'cashier',
         { type: 'table_status_changed', table_id }
@@ -206,6 +214,53 @@ export default function createApiRouter(broadcast) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Lỗi máy chủ khi hoàn thành món' });
+    }
+  });
+
+  // Đầu bếp hủy chế biến món ăn
+  router.post('/chef/items/cancel', async (req, res) => {
+    const { order_item_id, table_id, session_token, reason } = req.body;
+
+    if (!order_item_id) {
+      return res.status(400).json({ error: 'Thiếu Order Item ID' });
+    }
+
+    try {
+      await db.cancelOrderItem(order_item_id, reason);
+
+      // Lấy lại đơn hàng mới
+      const activeOrder = await db.getActiveOrderForTable(table_id, session_token);
+
+      // Thông báo cho Bếp cập nhật list (dùng chung type reload list)
+      broadcast(
+        (info) => info.role === 'chef',
+        { type: 'chef_item_completed', order_item_id } 
+      );
+
+      // Thông báo cho Khách hàng
+      broadcast(
+        (info) => info.role === 'customer' && info.tableId == table_id && info.sessionToken === session_token,
+        { type: 'order_updated', activeOrder }
+      );
+
+      // Thông báo cho Thu ngân
+      const item = activeOrder.items.find(i => i.order_item_id === order_item_id);
+      const tableInfo = await db.getTableById(table_id);
+      if (item && tableInfo) {
+        broadcast(
+          (info) => info.role === 'cashier',
+          { type: 'item_cooked_cashier_notify', message: `⚠️ Bếp HỦY món "${item.name}" Bàn ${tableInfo.table_number}! Lý do: ${reason || 'Không rõ'}` }
+        );
+      }
+      broadcast(
+        (info) => info.role === 'cashier',
+        { type: 'table_status_changed', table_id }
+      );
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi hủy món' });
     }
   });
 
@@ -393,7 +448,7 @@ export default function createApiRouter(broadcast) {
         if (table) {
           const activeOrder = await db.getActiveOrderForTable(table_id, table.current_session_token);
           broadcast(
-            (info) => info.role === 'customer' && info.tableId === table_id && info.sessionToken === table.current_session_token, 
+            (info) => info.role === 'customer' && info.tableId == table_id && info.sessionToken === table.current_session_token, 
             { type: 'order_updated', activeOrder }
           );
         }
@@ -492,14 +547,14 @@ export default function createApiRouter(broadcast) {
   // Đăng ký (Register)
   router.post('/auth/register', async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, fullname } = req.body;
       if (!username || !password) return res.status(400).json({ error: 'Thiếu username hoặc password' });
       
       const existingUser = await db.getUserByUsername(username);
       if (existingUser) return res.status(400).json({ error: 'Tài khoản đã tồn tại' });
       
       const hashedPassword = await bcrypt.hash(password, 10);
-      await db.createUser(username, hashedPassword);
+      await db.createUser(username, hashedPassword, fullname || 'Chưa cập nhật');
       res.json({ success: true, message: 'Đăng ký thành công' });
     } catch (err) {
       console.error(err);
@@ -519,8 +574,8 @@ export default function createApiRouter(broadcast) {
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
       
-      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET_KEY, { expiresIn: '12h' });
-      res.json({ success: true, token });
+      const token = jwt.sign({ id: user.id, username: user.username, role: user.role, fullname: user.fullname }, SECRET_KEY, { expiresIn: '12h' });
+      res.json({ success: true, token, role: user.role, fullname: user.fullname });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Lỗi máy chủ' });
@@ -535,10 +590,38 @@ export default function createApiRouter(broadcast) {
     }
     const token = authHeader.split(' ')[1];
     try {
-      jwt.verify(token, SECRET_KEY);
-      res.json({ success: true });
+      const decoded = jwt.verify(token, SECRET_KEY);
+      res.json({ success: true, role: decoded.role, username: decoded.username, fullname: decoded.fullname });
     } catch (err) {
       res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn (Server khởi động lại)' });
+    }
+  });
+
+  // Đổi mật khẩu
+  router.post('/auth/change-password', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY);
+      const { oldPassword, newPassword } = req.body;
+      if (!oldPassword || !newPassword) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ mật khẩu cũ và mới' });
+
+      const user = await db.getUserByUsername(decoded.username);
+      if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại' });
+      
+      const isValid = await bcrypt.compare(oldPassword, user.password);
+      if (!isValid) return res.status(400).json({ error: 'Mật khẩu cũ không chính xác' });
+      
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      // Sử dụng hàm updateUser(id, password, role)
+      await db.updateUser(decoded.id, hashedPassword, decoded.role);
+      
+      res.json({ success: true, message: 'Đổi mật khẩu thành công' });
+    } catch (err) {
+      res.status(401).json({ error: 'Lỗi xác thực hoặc máy chủ' });
     }
   });
 
@@ -619,12 +702,12 @@ export default function createApiRouter(broadcast) {
 
   router.post('/admin/employees', verifyAdmin, async (req, res) => {
     try {
-      const { username, password, role } = req.body;
+      const { username, password, role, fullname } = req.body;
       if (!username || !password || !role) return res.status(400).json({ error: 'Thiếu thông tin' });
       const existing = await db.getUserByUsername(username);
       if (existing) return res.status(400).json({ error: 'Tên đăng nhập đã tồn tại' });
       const hashed = await bcrypt.hash(password, 10);
-      await db.createUserWithRole(username, hashed, role);
+      await db.createUserWithRole(username, hashed, role, fullname || 'Chưa cập nhật');
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -635,12 +718,12 @@ export default function createApiRouter(broadcast) {
   router.put('/admin/employees/:id', verifyAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { password, role } = req.body;
+      const { password, role, fullname } = req.body;
       let hashed = null;
       if (password && password.trim() !== '') {
         hashed = await bcrypt.hash(password, 10);
       }
-      await db.updateUser(id, hashed, role);
+      await db.updateUser(id, hashed, role, fullname || 'Chưa cập nhật');
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -654,6 +737,31 @@ export default function createApiRouter(broadcast) {
       // Tránh tự xoá chính mình (chỉ kiểm tra tương đối, admin vẫn có thể có id khác nếu có nhiều admin)
       if (parseInt(id) === req.user.id) return res.status(400).json({ error: 'Không thể xoá chính mình' });
       await db.deleteUser(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  // --- RESTAURANT INFO ---
+  router.get('/restaurant/info', async (req, res) => {
+    try {
+      const info = await db.getRestaurantInfo();
+      res.json(info);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.put('/admin/restaurant/info', verifyAdmin, async (req, res) => {
+    try {
+      const { ten_nha_hang, dia_chi, so_dien_thoai } = req.body;
+      if (!ten_nha_hang || !dia_chi || !so_dien_thoai) {
+        return res.status(400).json({ error: 'Vui lòng điền đủ thông tin' });
+      }
+      await db.updateRestaurantInfo(ten_nha_hang, dia_chi, so_dien_thoai);
       res.json({ success: true });
     } catch (err) {
       console.error(err);

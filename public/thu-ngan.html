@@ -38,12 +38,18 @@
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
             </svg></button>
           <button class="pos-icon-btn">+</button>
-          <div class="pos-user">
+          <div class="pos-user" id="user-menu-btn" style="position: relative; cursor: pointer;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            admin
+            <span id="cashier-username">admin</span>
+
+            <div id="user-dropdown" class="user-dropdown">
+              <div class="dropdown-item" style="cursor: default;">Họ tên: <b id="dropdown-fullname">Admin</b></div>
+              <div class="dropdown-item" onclick="openChangePasswordModal()">Đổi mật khẩu</div>
+              <div class="dropdown-item text-danger" onclick="logout()">Đăng xuất</div>
+            </div>
           </div>
         </div>
       </div>
@@ -126,7 +132,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
-            </svg> Admin
+            </svg> <span id="cashier-footer-name">Admin</span>
           </div>
           <div class="pos-total-price">
             Tổng tiền <span class="badge" id="total-qty">0</span> <b id="total-price">0</b>
@@ -139,7 +145,7 @@
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
-            Thông báo (F10)
+            Thông báo
           </button>
           <button class="btn-outline" id="btn-print-temp">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -149,14 +155,14 @@
               <line x1="16" y1="17" x2="8" y2="17"></line>
               <polyline points="10 9 9 9 8 9"></polyline>
             </svg>
-            In tạm tính
+            In hoá đơn
           </button>
           <button class="btn-primary" id="btn-checkout">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="1" x2="12" y2="23"></line>
               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
             </svg>
-            Thanh toán (F9)
+            Thanh toán
           </button>
         </div>
       </div>
@@ -271,7 +277,8 @@
         <button class="close-btn" onclick="closeCheckoutModal()">&times;</button>
       </div>
       <div class="pos-modal-body" style="background: white; padding: 20px;">
-        <p id="checkout-desc" style="margin-bottom: 24px; color: #374151; font-size: 15px; text-align: center;">Xác nhận thanh toán cho Bàn ...?</p>
+        <p id="checkout-desc" style="margin-bottom: 24px; color: #374151; font-size: 15px; text-align: center;">Xác nhận
+          thanh toán cho Bàn ...?</p>
         <div style="display: flex; justify-content: center; gap: 12px;">
           <button class="unconf-btn-cancel" onclick="closeCheckoutModal()"
             style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; color: #374151; font-weight: 500;">
@@ -286,6 +293,34 @@
     </div>
   </div>
 
+  <!-- MODAL ĐỔI MẬT KHẨU -->
+  <div class="pos-modal-overlay" id="change-password-modal" style="display: none; z-index: 1050;">
+    <div class="pos-modal" style="width: 400px;">
+      <div class="pos-modal-header">
+        <h3>Đổi mật khẩu</h3>
+        <button class="close-btn" onclick="closeChangePasswordModal()">&times;</button>
+      </div>
+      <div class="pos-modal-body" style="background: white; padding: 20px;">
+        <div style="margin-bottom: 15px;">
+          <label style="display:block; margin-bottom: 5px; font-weight:500;">Mật khẩu cũ</label>
+          <input type="password" id="old-password"
+            style="width:100%; padding: 8px; border: 1px solid #d1d5db; border-radius:4px;"
+            placeholder="Nhập mật khẩu cũ">
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display:block; margin-bottom: 5px; font-weight:500;">Mật khẩu mới</label>
+          <input type="password" id="new-password"
+            style="width:100%; padding: 8px; border: 1px solid #d1d5db; border-radius:4px;"
+            placeholder="Nhập mật khẩu mới">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <button class="unconf-btn-cancel" onclick="closeChangePasswordModal()">Hủy</button>
+          <button class="unconf-btn-confirm" onclick="submitChangePassword()">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST -->
   <div class="toast" id="toast-notification">
     <span id="toast-message">Thông báo!</span>
@@ -294,16 +329,16 @@
   <div style="display: none;">
     <div id="invoice-template" class="invoice-container">
       <div class="invoice-header">
-        <h2>NHÀ HÀNG DATMON</h2>
-        <p>Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội</p>
-        <p>SĐT: 0123 456 789</p>
+        <h2 id="inv-res-name">NHÀ HÀNG DATMON</h2>
+        <p id="inv-res-address">Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội</p>
+        <p id="inv-res-phone">SĐT: 0123 456 789</p>
         <br>
         <h3 style="font-size: 18px; margin: 10px 0;">HÓA ĐƠN TẠM TÍNH</h3>
       </div>
       <div class="invoice-info">
         <p><b>Bàn:</b> <span id="inv-table-name">...</span></p>
         <p><b>Giờ in:</b> <span id="inv-time">...</span></p>
-        <p><b>Thu ngân:</b> Admin</p>
+        <p><b>Thu ngân:</b> <span id="inv-cashier">Admin</span></p>
       </div>
       <table class="invoice-table">
         <thead>
@@ -319,12 +354,14 @@
         </tbody>
       </table>
       <div class="invoice-footer">
-        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
+        <div
+          style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
           <span>Tổng cộng:</span>
           <span id="inv-total">0</span>
         </div>
         <p style="font-style: italic; text-align: center; font-size: 13px;">Cảm ơn quý khách và hẹn gặp lại!</p>
-        <p style="text-align: center; font-size: 12px; margin-top: 5px;">(Hóa đơn chỉ có giá trị thanh toán trong ngày)</p>
+        <p style="text-align: center; font-size: 12px; margin-top: 5px;">(Hóa đơn chỉ có giá trị thanh toán trong ngày)
+        </p>
       </div>
     </div>
   </div>

@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   if (!token) {
     window.location.href = '/login.html';
     return;
@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadTablesData();
   loadOverviewData();
   loadEmployeesData();
+  loadRestaurantSettings();
 
   // Tìm kiếm và lọc thực đơn
   const searchInput = document.getElementById('menu-search-input');
@@ -319,7 +320,7 @@ async function submitAddMenu() {
     return;
   }
 
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   let anh_minh_hoa = oldImage || null;
 
   try {
@@ -390,7 +391,7 @@ async function submitAddCategory() {
     return;
   }
 
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/categories', {
       method: 'POST',
@@ -435,7 +436,7 @@ async function submitDeleteCategory() {
   const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá nhóm món này? Các món ăn trong nhóm này sẽ bị mất phân loại.');
   if (!confirmed) return;
 
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/categories/' + ma_danh_muc, {
       method: 'DELETE',
@@ -461,7 +462,7 @@ async function deleteMenu(id) {
   const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá món ăn này? Hành động này không thể hoàn tác.');
   if (!confirmed) return;
 
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/menu', {
       method: 'DELETE',
@@ -491,7 +492,7 @@ async function deleteSelectedMenu() {
   if (!confirmed) return;
 
   const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/menu', {
       method: 'DELETE',
@@ -587,7 +588,7 @@ async function submitTable() {
   
   if (!table_number || !qr_token) return alert('Vui lòng nhập tên bàn và mã QR');
   
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   const method = id ? 'PUT' : 'POST';
   const url = id ? '/api/admin/tables/' + id : '/api/admin/tables';
   
@@ -633,7 +634,7 @@ async function deleteTable(id) {
   const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá bàn này?');
   if (!confirmed) return;
   
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/admin/tables/' + id, {
       method: 'DELETE',
@@ -757,7 +758,7 @@ function renderCharts() {
 }
 
 function logout() {
-  localStorage.removeItem('adminToken');
+  sessionStorage.removeItem('adminToken');
   window.location.href = '/login.html';
 }
 
@@ -765,7 +766,7 @@ function logout() {
 let employeesData = [];
 
 async function loadEmployeesData() {
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/admin/employees', {
       headers: { 'Authorization': 'Bearer ' + token }
@@ -797,6 +798,7 @@ function renderEmployeeTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>NV${String(emp.id).padStart(4, '0')}</td>
+      <td>${emp.fullname || 'Chưa cập nhật'}</td>
       <td style="font-weight:600;">${emp.username}</td>
       <td>${roleText}</td>
       <td style="text-align:center;">
@@ -811,6 +813,7 @@ function renderEmployeeTable() {
 function openEmployeeModal(id = null) {
   document.getElementById('edit-employee-id').value = id || '';
   const title = document.getElementById('employee-modal-title');
+  const fullnameInput = document.getElementById('employee-fullname');
   const userInput = document.getElementById('employee-username');
   const passInput = document.getElementById('employee-password');
   const roleSelect = document.getElementById('employee-role');
@@ -820,6 +823,7 @@ function openEmployeeModal(id = null) {
     const emp = employeesData.find(e => e.id === id);
     if (!emp) return;
     title.textContent = 'Sửa nhân viên';
+    fullnameInput.value = emp.fullname || '';
     userInput.value = emp.username;
     userInput.disabled = true; // Không cho đổi username
     passInput.value = '';
@@ -827,6 +831,7 @@ function openEmployeeModal(id = null) {
     pwHint.textContent = '(Bỏ trống nếu không muốn đổi)';
   } else {
     title.textContent = 'Thêm nhân viên mới';
+    fullnameInput.value = '';
     userInput.value = '';
     userInput.disabled = false;
     passInput.value = '';
@@ -839,6 +844,7 @@ function openEmployeeModal(id = null) {
 
 async function submitEmployee() {
   const id = document.getElementById('edit-employee-id').value;
+  const fullname = document.getElementById('employee-fullname').value.trim();
   const username = document.getElementById('employee-username').value.trim();
   const password = document.getElementById('employee-password').value;
   const role = document.getElementById('employee-role').value;
@@ -846,7 +852,7 @@ async function submitEmployee() {
   if (!username) return alert('Vui lòng nhập tên đăng nhập');
   if (!id && !password) return alert('Vui lòng nhập mật khẩu cho nhân viên mới');
   
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   const method = id ? 'PUT' : 'POST';
   const url = id ? '/api/admin/employees/' + id : '/api/admin/employees';
   
@@ -857,7 +863,7 @@ async function submitEmployee() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
-      body: JSON.stringify({ username, password, role })
+      body: JSON.stringify({ username, password, role, fullname })
     });
     
     if (res.ok) {
@@ -878,7 +884,7 @@ async function deleteEmployee(id) {
   const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá nhân viên này?');
   if (!confirmed) return;
   
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/admin/employees/' + id, {
       method: 'DELETE',
@@ -891,6 +897,49 @@ async function deleteEmployee(id) {
     } else {
       const data = await res.json();
       alert(data.error || 'Không thể xoá nhân viên này');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối máy chủ');
+  }
+}
+
+// --- RESTAURANT SETTINGS ---
+async function loadRestaurantSettings() {
+  try {
+    const res = await fetch('/api/restaurant/info');
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById('setting-res-name').value = data.ten_nha_hang || '';
+      document.getElementById('setting-res-address').value = data.dia_chi || '';
+      document.getElementById('setting-res-phone').value = data.so_dien_thoai || '';
+    }
+  } catch (err) { console.error('Lỗi tải cài đặt nhà hàng', err); }
+}
+
+async function submitRestaurantSettings() {
+  const ten_nha_hang = document.getElementById('setting-res-name').value.trim();
+  const dia_chi = document.getElementById('setting-res-address').value.trim();
+  const so_dien_thoai = document.getElementById('setting-res-phone').value.trim();
+  
+  if (!ten_nha_hang || !dia_chi || !so_dien_thoai) return alert('Vui lòng nhập đủ thông tin');
+  
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/admin/restaurant/info', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ ten_nha_hang, dia_chi, so_dien_thoai })
+    });
+    
+    if (res.ok) {
+      showToast('Đã cập nhật thông tin nhà hàng!');
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Lỗi cập nhật');
     }
   } catch (err) {
     console.error(err);

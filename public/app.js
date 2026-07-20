@@ -540,8 +540,9 @@ function renderActiveOrder() {
 
 // OVERLAY CHỜ THANH TOÁN
 function showPaymentOverlay() {
-  if (state.activeOrder) {
-    paymentOverlayTotal.textContent = `Tổng thanh toán: ${formatPrice(state.activeOrder.total_amount)}`;
+  if (state.activeOrder && state.activeOrder.items) {
+    const totalPrice = state.activeOrder.items.reduce((s, i) => s + (i.status !== 'canceled' ? i.price * i.quantity : 0), 0);
+    paymentOverlayTotal.textContent = `Tổng thanh toán: ${formatPrice(totalPrice)}`;
   }
   paymentOverlay.classList.add('open');
 }
@@ -846,8 +847,8 @@ function openOrderedItems() {
   }
 
   // Calculate totals
-  const totalItems = state.activeOrder.items.reduce((s, i) => s + i.quantity, 0);
-  const totalPrice = state.activeOrder.total_amount;
+  const totalItems = state.activeOrder.items.reduce((s, i) => s + (i.status !== 'canceled' ? i.quantity : 0), 0);
+  const totalPrice = state.activeOrder.items.reduce((s, i) => s + (i.status !== 'canceled' ? i.price * i.quantity : 0), 0);
   if (countEl) countEl.textContent = totalItems;
   if (totalEl) totalEl.textContent = formatPrice(totalPrice);
 
@@ -869,8 +870,10 @@ function openOrderedItems() {
       };
     }
     groups[timeKey].items.push(item);
-    groups[timeKey].totalItems += item.quantity;
-    groups[timeKey].totalPrice += (item.price * item.quantity);
+    if (item.status !== 'canceled') {
+      groups[timeKey].totalItems += item.quantity;
+      groups[timeKey].totalPrice += (item.price * item.quantity);
+    }
   });
 
   let allGroupsHtml = '';
@@ -885,6 +888,9 @@ function openOrderedItems() {
       } else if (item.status === 'done') {
         badgeClass = 'kiot-badge-done';
         badgeText = 'Đã phục vụ';
+      } else if (item.status === 'canceled') {
+        badgeClass = 'kiot-badge-canceled';
+        badgeText = 'Đã hủy';
       }
       
       const isLast = index === g.items.length - 1;

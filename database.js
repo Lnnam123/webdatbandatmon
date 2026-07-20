@@ -29,9 +29,15 @@ export async function initDb() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         ten_dang_nhap VARCHAR(255) UNIQUE NOT NULL,
         mat_khau VARCHAR(255) NOT NULL,
-        vai_tro VARCHAR(50) DEFAULT 'admin'
+        vai_tro VARCHAR(50) DEFAULT 'admin',
+        ho_ten VARCHAR(255) DEFAULT 'Chưa cập nhật'
       )
     `);
+
+    // Tự động thêm cột ho_ten nếu chưa có (dành cho db đã tạo trước đó)
+    try {
+      await pool.query(`ALTER TABLE tai_khoan ADD COLUMN ho_ten VARCHAR(255) DEFAULT 'Chưa cập nhật'`);
+    } catch (e) {}
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ban_an (
@@ -97,6 +103,21 @@ export async function initDb() {
     }
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS thong_tin_nha_hang (
+        id INT PRIMARY KEY DEFAULT 1,
+        ten_nha_hang VARCHAR(255) NOT NULL,
+        dia_chi VARCHAR(255) NOT NULL,
+        so_dien_thoai VARCHAR(50) NOT NULL
+      )
+    `);
+
+    // Insert default restaurant info if not exists
+    const [resRows] = await pool.query('SELECT COUNT(*) as count FROM thong_tin_nha_hang');
+    if (resRows[0].count === 0) {
+      await pool.query('INSERT INTO thong_tin_nha_hang (id, ten_nha_hang, dia_chi, so_dien_thoai) VALUES (1, ?, ?, ?)', ['NHÀ HÀNG DATMON', 'Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội', '0123 456 789']);
+    }
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS chi_tiet_don_hang (
         id INT AUTO_INCREMENT PRIMARY KEY,
         id_don_hang INT NOT NULL,
@@ -141,26 +162,39 @@ export function getPool() {
 
 // --- AUTH FUNCTIONS ---
 export async function getUserByUsername(username) {
-  return await dbGet('SELECT id, ten_dang_nhap as username, mat_khau as password, vai_tro as role FROM tai_khoan WHERE ten_dang_nhap = ?', [username]);
+  return await dbGet('SELECT id, ten_dang_nhap as username, mat_khau as password, vai_tro as role, ho_ten as fullname FROM tai_khoan WHERE ten_dang_nhap = ?', [username]);
 }
-export async function createUser(username, password) {
-  return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau) VALUES (?, ?)', [username, password]);
+export async function createUser(username, password, fullname = 'Chưa cập nhật') {
+  return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, ho_ten) VALUES (?, ?, ?)', [username, password, fullname]);
 }
-export async function createUserWithRole(username, password, role) {
-  return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, vai_tro) VALUES (?, ?, ?)', [username, password, role]);
+export async function createUserWithRole(username, password, role, fullname = 'Chưa cập nhật') {
+  return await dbRun('INSERT INTO tai_khoan (ten_dang_nhap, mat_khau, vai_tro, ho_ten) VALUES (?, ?, ?, ?)', [username, password, role, fullname]);
 }
 export async function getAllUsers() {
-  return await dbAll('SELECT id, ten_dang_nhap as username, vai_tro as role FROM tai_khoan ORDER BY id ASC');
+  return await dbAll('SELECT id, ten_dang_nhap as username, vai_tro as role, ho_ten as fullname FROM tai_khoan ORDER BY id ASC');
 }
 export async function deleteUser(id) {
   return await dbRun('DELETE FROM tai_khoan WHERE id = ?', [id]);
 }
-export async function updateUser(id, password, role) {
+export async function updateUser(id, password, role, fullname = 'Chưa cập nhật') {
   if (password) {
-    return await dbRun('UPDATE tai_khoan SET mat_khau = ?, vai_tro = ? WHERE id = ?', [password, role, id]);
+    return await dbRun('UPDATE tai_khoan SET mat_khau = ?, vai_tro = ?, ho_ten = ? WHERE id = ?', [password, role, fullname, id]);
   } else {
-    return await dbRun('UPDATE tai_khoan SET vai_tro = ? WHERE id = ?', [role, id]);
+    return await dbRun('UPDATE tai_khoan SET vai_tro = ?, ho_ten = ? WHERE id = ?', [role, fullname, id]);
   }
+}
+
+// --- RESTAURANT INFO ---
+export async function getRestaurantInfo() {
+  const row = await dbGet('SELECT * FROM thong_tin_nha_hang WHERE id = 1');
+  return row || { ten_nha_hang: 'NHÀ HÀNG DATMON', dia_chi: 'Hà Nội', so_dien_thoai: '0123456789' };
+}
+
+export async function updateRestaurantInfo(ten_nha_hang, dia_chi, so_dien_thoai) {
+  return await dbRun(
+    'UPDATE thong_tin_nha_hang SET ten_nha_hang = ?, dia_chi = ?, so_dien_thoai = ? WHERE id = 1',
+    [ten_nha_hang, dia_chi, so_dien_thoai]
+  );
 }
 
 // --- APP FUNCTIONS ---
@@ -254,7 +288,7 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
     `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
      FROM chi_tiet_don_hang oi
      JOIN thuc_don mi ON oi.id_mon_an = mi.id
-     WHERE oi.id_don_hang = ? AND oi.trang_thai != 'canceled'`,
+     WHERE oi.id_don_hang = ?`,
     [order.id]
   );
 
@@ -290,14 +324,22 @@ export async function getOrderItemInfo(orderItemId) {
 }
 
 export async function cancelOrderItem(orderItemId, cancelReason) {
-  // Lấy thông tin món trước khi hủy
-  const item = await dbGet('SELECT id_don_hang, so_luong, gia_ban FROM chi_tiet_don_hang WHERE id = ?', [orderItemId]);
-  if (item) {
-    const amountToDeduct = item.so_luong * item.gia_ban;
-    await dbRun('UPDATE don_hang SET tong_tien = tong_tien - ? WHERE id = ?', [amountToDeduct, item.id_don_hang]);
-  }
+  const item = await dbGet('SELECT id_don_hang FROM chi_tiet_don_hang WHERE id = ?', [orderItemId]);
+
   // Đổi trạng thái
   await dbRun('UPDATE chi_tiet_don_hang SET trang_thai = "canceled" WHERE id = ?', [orderItemId]);
+
+  if (item) {
+    const activeItems = await dbAll('SELECT trang_thai, so_luong, gia_ban FROM chi_tiet_don_hang WHERE id_don_hang = ?', [item.id_don_hang]);
+    const newTotal = activeItems.reduce((sum, i) => sum + (i.trang_thai !== 'canceled' ? i.so_luong * i.gia_ban : 0), 0);
+    const allDone = activeItems.every(i => i.trang_thai === 'done' || i.trang_thai === 'canceled');
+    
+    await dbRun('UPDATE don_hang SET tong_tien = ? WHERE id = ?', [newTotal, item.id_don_hang]);
+    
+    if (activeItems.length > 0 && allDone) {
+      await dbRun('UPDATE don_hang SET trang_thai = "done" WHERE id = ?', [item.id_don_hang]);
+    }
+  }
 }
 
 export async function updateOrderItemQuantity(orderItemId, quantity) {

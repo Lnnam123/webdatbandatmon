@@ -50,6 +50,24 @@
     <span id="toast-message">Thông báo!</span>
   </div>
 
+  <!-- Modal Hủy Món -->
+  <div id="cancel-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; width: 400px; max-width: 90%; padding: 20px;">
+      <h3 style="margin-bottom: 15px; color: #ef4444; font-size: 18px; font-weight: 700;">✕ Hủy món ăn</h3>
+      <p style="margin-bottom: 10px; color: #374151;">Vui lòng chọn lý do hủy món:</p>
+      <select id="cancel-reason" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #d1d5db; border-radius: 6px; outline: none;">
+        <option value="Hết nguyên liệu">Hết nguyên liệu</option>
+        <option value="Bếp quá tải">Bếp quá tải</option>
+        <option value="Yêu cầu sai">Yêu cầu sai</option>
+        <option value="Khác">Lý do khác...</option>
+      </select>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="cancel-modal-close" style="background: #e5e7eb; color: #374151; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Đóng</button>
+        <button id="cancel-modal-confirm" style="background: #ef4444; color: white; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Xác nhận Hủy</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let chefItems = [];
     let socket = null;
@@ -119,12 +137,18 @@
             <h4 style="font-size: 18px; font-weight:800;">${item.name}</h4>
             <div style="font-size: 15px; color: var(--primary); font-weight:800; margin-top: 6px;">Số lượng: x${item.quantity}</div>
           </div>
-          <div>
-            <button class="btn btn-success btn-complete" style="width: 100%;" 
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-success btn-complete" style="flex: 1; padding: 10px 5px; font-size: 14px;" 
               data-id="${item.order_item_id}" 
               data-table="${item.table_id}" 
               data-session="${item.session_token}">
-              ✓ Hoàn thành chế biến
+              ✓ Hoàn thành
+            </button>
+            <button class="btn btn-cancel-chef" style="flex: 1; padding: 10px 5px; font-size: 14px; background-color: #ef4444; color: white;" 
+              data-id="${item.order_item_id}" 
+              data-table="${item.table_id}" 
+              data-session="${item.session_token}">
+              ✕ Hủy món
             </button>
           </div>
         `;
@@ -139,9 +163,49 @@
           const sessionToken = btn.getAttribute('data-session');
           
           btn.setAttribute('disabled', 'true');
-          btn.textContent = 'Đang cập nhật...';
+          btn.textContent = 'Đang xử lý...';
           await completeChefItem(itemId, tableId, sessionToken);
         });
+      });
+
+      // Bind cancel button event
+      let currentCancelData = null;
+      document.querySelectorAll('.btn-cancel-chef').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          currentCancelData = {
+            itemId: btn.getAttribute('data-id'),
+            tableId: btn.getAttribute('data-table'),
+            sessionToken: btn.getAttribute('data-session'),
+            btn: btn
+          };
+          document.getElementById('cancel-modal').style.display = 'flex';
+        });
+      });
+
+      const closeBtn = document.getElementById('cancel-modal-close');
+      const confirmBtn = document.getElementById('cancel-modal-confirm');
+      
+      // Xóa event cũ nếu có để tránh gọi API nhiều lần
+      const newCloseBtn = closeBtn.cloneNode(true);
+      closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+      const newConfirmBtn = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+      newCloseBtn.addEventListener('click', () => {
+        document.getElementById('cancel-modal').style.display = 'none';
+        currentCancelData = null;
+      });
+
+      newConfirmBtn.addEventListener('click', async () => {
+        if (!currentCancelData) return;
+        const reason = document.getElementById('cancel-reason').value;
+        const { itemId, tableId, sessionToken, btn } = currentCancelData;
+        
+        btn.setAttribute('disabled', 'true');
+        btn.textContent = 'Đang xử lý...';
+        document.getElementById('cancel-modal').style.display = 'none';
+        
+        await cancelChefItem(itemId, tableId, sessionToken, reason);
       });
     }
 
@@ -151,23 +215,34 @@
         const res = await fetch('/api/chef/items/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_item_id: parseInt(orderItemId),
-            table_id: parseInt(tableId),
-            session_token: sessionToken
-          })
+          body: JSON.stringify({ order_item_id: orderItemId, table_id: tableId, session_token: sessionToken })
         });
-
-        if (!res.ok) throw new Error('Lỗi cập nhật món ăn');
-        showToast('Đã đánh dấu món ăn hoàn thành!', true);
-        
-        // Cập nhật state cục bộ
-        chefItems = chefItems.filter(i => i.order_item_id !== parseInt(orderItemId));
-        renderChefItems();
+        if (res.ok) {
+          showToast('Đã báo hoàn thành món ăn!');
+          // Tự load lại qua socket, không cần gọi thủ công
+        } else {
+          showToast('Có lỗi xảy ra, thử lại sau', false);
+        }
       } catch (err) {
-        console.error(err);
-        showToast('Cập nhật thất bại. Vui lòng thử lại!', false);
-        loadChefItems();
+        showToast('Lỗi kết nối', false);
+      }
+    }
+
+    // Cancel Chef Item
+    async function cancelChefItem(orderItemId, tableId, sessionToken, reason) {
+      try {
+        const res = await fetch('/api/chef/items/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_item_id: orderItemId, table_id: tableId, session_token: sessionToken, reason: reason })
+        });
+        if (res.ok) {
+          showToast('Đã hủy chế biến món ăn!');
+        } else {
+          showToast('Có lỗi xảy ra, thử lại sau', false);
+        }
+      } catch (err) {
+        showToast('Lỗi kết nối', false);
       }
     }
 

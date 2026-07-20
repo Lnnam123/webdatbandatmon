@@ -1,6 +1,9 @@
 let tables = [];
 let selectedTable = null;
 let socket = null;
+let currentUsername = 'Admin';
+let currentFullname = 'Admin';
+let currentResInfo = null;
 
 // DOM Elements
 const tablesGrid = document.getElementById('tables-grid');
@@ -45,12 +48,11 @@ async function loadTables() {
       const updatedTable = tables.find(t => t.id === selectedTable.id);
       if (updatedTable) {
         selectedTable = updatedTable;
-        renderRightPane();
       } else {
         selectedTable = null;
-        renderRightPane();
       }
     }
+    renderRightPane();
   } catch (err) {
     console.error(err);
     showToast('Không thể tải sơ đồ bàn ăn!', false);
@@ -76,7 +78,7 @@ function renderTables() {
     let guestIcon = '';
     if (isActiveOrder && t.active_order) {
       const confirmedTotal = t.active_order.items
-        .filter(i => i.status !== 'unconfirmed' && i.status !== 'canceled')
+        .filter(i => i.status === 'done')
         .reduce((sum, i) => sum + (i.price * i.quantity), 0);
       if (confirmedTotal > 0) {
         totalAmt = formatPrice(confirmedTotal);
@@ -135,8 +137,8 @@ function renderRightPane() {
   let totalPrice = 0;
   let index = 1;
 
-  // Lọc chỉ hiện các món đã confirmed (cooking, done) ở màn thanh toán thu ngân
-  const confirmedItems = selectedTable.active_order.items.filter(i => i.status !== 'unconfirmed' && i.status !== 'canceled');
+  // Lọc chỉ hiện các món đã nấu xong (done) ở màn thanh toán thu ngân
+  const confirmedItems = selectedTable.active_order.items.filter(i => i.status === 'done');
 
   if (confirmedItems.length === 0) {
     orderItemsList.innerHTML = `<div class="empty-state" style="text-align:center; margin-top:20px; color:#888;">Đơn hàng đang chờ duyệt</div>`;
@@ -254,7 +256,7 @@ function renderConfirmModal(unconfirmedByTable) {
 
     block.innerHTML = `
       <div class="unconf-header">
-        <div>Bàn ${data.table.table_number} - Tất cả <span class="unconf-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${timeDiff} phút trước</span></div>
+        <div>${data.table.table_number} - Tất cả <span class="unconf-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${timeDiff} phút trước</span></div>
         <span style="color:#10b981; font-size:12px; font-weight:normal;">Đang phục vụ</span>
       </div>
       ${data.table.active_order.note ? `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin: 12px 12px 0 12px; border-radius: 4px;">📝 Ghi chú: <b>${data.table.active_order.note}</b></div>` : ''}
@@ -365,7 +367,7 @@ const rejectOrderModal = document.getElementById('reject-order-modal');
 
 window.openRejectOrderModal = (tableId, tableName) => {
   rejectTableId = tableId;
-  document.getElementById('reject-order-desc').textContent = `Hủy yêu cầu gọi món từ Bàn ${tableName}. Vui lòng nhập lý do phía dưới:`;
+  document.getElementById('reject-order-desc').textContent = `Hủy yêu cầu gọi món từ ${tableName}. Vui lòng nhập lý do phía dưới:`;
   rejectOrderModal.style.display = 'flex';
 };
 
@@ -415,7 +417,9 @@ function initWebSocket() {
 
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    if (data.type === 'new_order' || data.type === 'table_status_changed') {
+    if (data.type === 'item_cooked_cashier_notify') {
+      showToast(data.message);
+    } else if (data.type === 'new_order' || data.type === 'table_status_changed') {
       loadTables();
     }
   };
@@ -457,7 +461,7 @@ document.getElementById('checkout-confirm-btn').addEventListener('click', async 
     });
     
     if (res.ok) {
-      showToast(`Đã thanh toán bàn ${selectedTable.table_number}`);
+      showToast(`Đã thanh toán ${selectedTable.table_number}`);
       selectedTable = null;
       loadTables();
       closeCheckoutModal();
@@ -478,7 +482,14 @@ btnPrintTemp.addEventListener('click', () => {
   }
 
   // Populate data
+  if (currentResInfo) {
+    document.getElementById('inv-res-name').textContent = currentResInfo.ten_nha_hang;
+    document.getElementById('inv-res-address').textContent = currentResInfo.dia_chi;
+    document.getElementById('inv-res-phone').textContent = 'SĐT: ' + currentResInfo.so_dien_thoai;
+  }
+  
   document.getElementById('inv-table-name').textContent = selectedTable.table_number;
+  document.getElementById('inv-cashier').textContent = currentFullname;
   
   const now = new Date();
   const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
@@ -487,7 +498,7 @@ btnPrintTemp.addEventListener('click', () => {
   const invItemsBody = document.getElementById('inv-items');
   invItemsBody.innerHTML = '';
   
-  const confirmedItems = selectedTable.active_order.items.filter(i => i.status !== 'unconfirmed' && i.status !== 'canceled');
+  const confirmedItems = selectedTable.active_order.items.filter(i => i.status === 'done');
   
   if (confirmedItems.length === 0) {
     showToast('Không có món nào đã xác nhận để in!', false);
@@ -512,9 +523,12 @@ btnPrintTemp.addEventListener('click', () => {
 
   // Generate PDF
   const element = document.getElementById('invoice-template');
+  const safeTableName = selectedTable.table_number.replace(/\s+/g, '_');
+  const fileDate = `${now.getHours()}h${now.getMinutes()}_${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}`;
+  
   const opt = {
     margin:       0,
-    filename:     `HoaDon_${selectedTable.table_number}_${Date.now()}.pdf`,
+    filename:     `HoaDon_${safeTableName}_${fileDate}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2 },
     jsPDF:        { unit: 'mm', format: [80, 297], orientation: 'portrait' }
@@ -527,5 +541,97 @@ btnPrintTemp.addEventListener('click', () => {
 });
 
 // INIT
+async function fetchUserInfo() {
+  const token = sessionStorage.getItem('adminToken');
+  if (token) {
+    try {
+      const res = await fetch('/api/auth/check', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.username) {
+        currentUsername = data.username;
+        if (data.fullname) {
+          currentFullname = data.fullname;
+          document.getElementById('dropdown-fullname').textContent = data.fullname;
+          document.getElementById('cashier-username').textContent = data.fullname;
+          if (document.getElementById('cashier-footer-name')) {
+            document.getElementById('cashier-footer-name').textContent = data.fullname;
+          }
+        } else {
+          document.getElementById('cashier-username').textContent = data.username;
+          if (document.getElementById('cashier-footer-name')) {
+            document.getElementById('cashier-footer-name').textContent = data.username;
+          }
+        }
+      }
+    } catch (err) { console.log(err); }
+  }
+}
+
+// User Menu Dropdown
+const userMenuBtn = document.getElementById('user-menu-btn');
+const userDropdown = document.getElementById('user-dropdown');
+if (userMenuBtn && userDropdown) {
+  userMenuBtn.addEventListener('click', (e) => {
+    if (e.target.closest('#user-dropdown')) return;
+    userDropdown.classList.toggle('show');
+  });
+  document.addEventListener('click', (e) => {
+    if (!userMenuBtn.contains(e.target)) {
+      userDropdown.classList.remove('show');
+    }
+  });
+}
+
+// Auth actions
+window.logout = () => {
+  sessionStorage.removeItem('adminToken');
+  window.location.href = '/login.html';
+};
+window.openChangePasswordModal = () => {
+  document.getElementById('change-password-modal').style.display = 'flex';
+  document.getElementById('old-password').value = '';
+  document.getElementById('new-password').value = '';
+  if (userDropdown) userDropdown.classList.remove('show');
+};
+window.closeChangePasswordModal = () => {
+  document.getElementById('change-password-modal').style.display = 'none';
+};
+window.submitChangePassword = async () => {
+  const oldPassword = document.getElementById('old-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  if (!oldPassword || !newPassword) return showToast('Vui lòng nhập đủ mật khẩu', false);
+  
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ oldPassword, newPassword })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast('Đổi mật khẩu thành công!');
+      closeChangePasswordModal();
+    } else {
+      showToast(data.error || 'Lỗi đổi mật khẩu', false);
+    }
+  } catch(err) {
+    showToast('Lỗi máy chủ', false);
+  }
+};
+
+fetchUserInfo();
 loadTables();
 initWebSocket();
+
+async function fetchRestaurantInfo() {
+  try {
+    const res = await fetch('/api/restaurant/info');
+    if (res.ok) {
+      currentResInfo = await res.json();
+    }
+  } catch (err) { console.error('Lỗi tải thông tin nhà hàng', err); }
+}
+fetchRestaurantInfo();

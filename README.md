@@ -1,78 +1,221 @@
-# Glow Bites - Hệ Thống Đặt Món Bằng Mã QR (QR Order System)
+# 🍽️ Hệ Thống Đặt Bàn & Gọi Món Nhà Hàng (QR Order System)
 
-Đây là hệ thống phần mềm quản lý nhà hàng tự động hóa bằng cách cho phép khách hàng tự đặt món tại bàn qua việc quét mã QR. Ứng dụng cung cấp các giao diện chuyên biệt cho từng vai trò trong nhà hàng: **Khách hàng**, **Thu ngân**, **Đầu bếp**, và **Quản lý**, tất cả đều được đồng bộ hóa theo thời gian thực (Real-time) thông qua WebSocket.
-
----
-
-## 🌟 Các tính năng nổi bật
-1. **Khách hàng (Customer View):**
-   - Quét mã QR tại bàn để vào thực đơn.
-   - Giao diện mượt mà: Các nhóm món được ghim tiêu đề, tự động cuộn đến nhóm món khi chọn, thanh cuộn tự động theo dõi vị trí lướt (ScrollSpy).
-   - Đặt món, gọi nhân viên hỗ trợ, xem các món đã đặt và gửi yêu cầu thanh toán mà không cần gọi phục vụ.
-2. **Quản lý (Admin Dashboard):**
-   - Bảng điều khiển (Overview): Theo dõi tổng doanh thu, số lượng đơn, và tỷ lệ lấp đầy bàn theo thời gian thực.
-   - Quản lý Thực đơn (Menu Management): Thêm, sửa, xoá món ăn. Hỗ trợ giao diện Kéo & Thả (Drag & Drop) để tải ảnh món ăn lên máy chủ.
-   - Quản lý Phòng/Bàn: Xem trạng thái từng bàn (đang trống, đang phục vụ, chờ thanh toán).
-3. **Thu ngân (Cashier):**
-   - Giám sát toàn bộ sơ đồ bàn.
-   - Nhận thông báo "Chờ thanh toán" nhấp nháy đỏ từ các bàn. 
-   - Kiểm tra hoá đơn và xác nhận thanh toán để giải phóng bàn.
-4. **Đầu bếp (Kitchen):**
-   - Nhận các đơn đặt món theo thời gian thực ngay khi khách bấm đặt.
-   - Cập nhật trạng thái "Đã nấu xong", thông báo sẽ được gửi ngược lại cho màn hình của khách hàng.
+Ứng dụng web quản lý nhà hàng theo thời gian thực, cho phép khách hàng quét mã QR để đặt món, nhà bếp nhận và xử lý đơn hàng, và thu ngân quản lý thanh toán — tất cả đồng bộ tức thì qua WebSocket.
 
 ---
 
-## 🚀 Hướng dẫn cài đặt
+## 🚀 Tính Năng Nổi Bật
 
-Dự án yêu cầu máy tính của bạn phải có sẵn **Node.js** và **MySQL/XAMPP**.
+### 👤 Dành cho Khách Hàng (Giao diện Đặt Món)
+- Quét **mã QR** tại bàn để vào thực đơn riêng của bàn đó
+- Xem thực đơn, thêm/xóa món vào giỏ hàng, ghi ghi chú
+- Xem **"Món đã gọi"** với trạng thái thời gian thực (Chờ xác nhận → Đang chế biến → Đã phục vụ / Đã hủy)
+- Nhận thông báo tức thì khi món ăn hoàn thành hoặc bị hủy
+- Tự động hiển thị màn hình **chờ thanh toán** khi thu ngân chốt đơn
 
-### Bước 1: Chuẩn bị cơ sở dữ liệu
-1. Đảm bảo dịch vụ MySQL (ví dụ qua XAMPP) đang được bật.
-2. Mở terminal tại thư mục dự án và cài đặt các thư viện:
-   ```bash
-   npm install
-   ```
-3. Chạy file seed để khởi tạo CSDL, tự động tạo các bảng và dữ liệu mẫu:
-   ```bash
-   node seed.js
-   ```
-   *(Tài khoản quản lý mặc định được tạo ra là: **admin** / **admin**)*
+### 🍳 Dành cho Nhà Bếp (Giao diện Đầu Bếp)
+- Nhận đơn món mới ngay khi thu ngân xác nhận
+- Cập nhật trạng thái từng món: **Nấu xong** hoặc **Hủy món** (kèm lý do)
+- Màn hình tự động làm mới theo thời gian thực
 
-### Bước 2: Khởi động máy chủ
-Sau khi cài đặt xong, khởi động server bằng lệnh:
+### 💵 Dành cho Thu Ngân (Giao diện POS)
+- Quản lý toàn bộ **sơ đồ bàn** (trống / đang phục vụ / chờ thanh toán)
+- **Xác nhận gọi món** từ QR của khách để chuyển sang bếp
+- Theo dõi từng món theo trạng thái, chỉnh sửa số lượng, hủy món
+- Tính **tổng tiền thông minh** (loại trừ món đã hủy)
+- In hóa đơn PDF trực tiếp từ trình duyệt
+- Nhận thông báo tức thì khi bếp hoàn thành món
+- Hiển thị **họ và tên** nhân viên đang đăng nhập
+
+### 🔧 Dành cho Quản Lý (Giao diện Admin)
+- Quản lý **thực đơn**: thêm, sửa, xóa món, upload ảnh
+- Quản lý **danh mục** món ăn
+- Quản lý **bàn ăn** và mã QR
+- Quản lý **nhân viên**: thêm, sửa, xóa tài khoản (kèm họ tên, phân quyền)
+- Cập nhật **thông tin nhà hàng** (tên, địa chỉ, số điện thoại) — tự động hiển thị trên hóa đơn
+- Xem **thống kê tổng quan**
+
+---
+
+## 🛠️ Công Nghệ Sử Dụng
+
+| Thành phần | Công nghệ |
+|---|---|
+| **Backend** | Node.js + Express.js |
+| **Database** | MySQL / MariaDB (`mysql2`) |
+| **Realtime** | WebSocket (`ws`) |
+| **Xác thực** | JWT (`jsonwebtoken`) + Bcrypt (`bcryptjs`) |
+| **Upload ảnh** | Multer |
+| **Frontend** | HTML5 + CSS3 + Vanilla JavaScript |
+| **In hóa đơn** | html2pdf.js |
+
+---
+
+## 📁 Cấu Trúc Thư Mục
+
+```
+webdatbandatmon/
+├── server.js             # Server chính: Express + WebSocket
+├── api.js                # Toàn bộ REST API endpoints
+├── database.js           # Các hàm tương tác với MySQL
+├── restaurant_db.sql     # File xuất cơ sở dữ liệu (MySQL dump)
+├── seed.js               # Script tạo dữ liệu mẫu
+├── package.json
+└── public/
+    ├── dat-mon.html       # Giao diện Khách Hàng (đặt món qua QR)
+    ├── app.js             # Logic JS cho trang đặt món
+    ├── style.css          # CSS chung cho đặt món
+    ├── dau-bep.html       # Giao diện Nhà Bếp
+    ├── thu-ngan.html      # Giao diện Thu Ngân (POS)
+    ├── thu-ngan.js        # Logic JS cho POS
+    ├── thu-ngan.css       # CSS cho POS
+    ├── quan-ly.html       # Giao diện Quản Lý (Admin)
+    ├── quan-ly.js         # Logic JS cho admin
+    ├── quan-ly.css        # CSS cho admin
+    ├── login.html         # Trang đăng nhập nhân viên
+    ├── login.js           # Logic đăng nhập
+    ├── login.css
+    └── uploads/           # Ảnh món ăn được upload lên
+```
+
+---
+
+## ⚙️ Hướng Dẫn Cài Đặt & Chạy
+
+### Yêu Cầu Hệ Thống
+- **Node.js** v18 trở lên
+- **MySQL** hoặc **MariaDB** (khuyến nghị XAMPP/WAMP)
+
+### Bước 1 — Clone dự án
+```bash
+git clone <repository-url>
+cd webdatbandatmon
+```
+
+### Bước 2 — Cài đặt thư viện
+```bash
+npm install
+```
+
+### Bước 3 — Tạo cơ sở dữ liệu MySQL
+
+1. Mở **phpMyAdmin** (hoặc MySQL client)
+2. Tạo database mới tên `restaurant_db`
+3. Import file `restaurant_db.sql` vào database vừa tạo
+
+### Bước 4 — Cấu hình kết nối Database
+
+Mở file `database.js` và sửa thông tin kết nối MySQL của bạn:
+
+```javascript
+const pool = mysql.createPool({
+  host: 'localhost',
+  user: 'root',       // username MySQL của bạn
+  password: '',       // password MySQL của bạn
+  database: 'restaurant_db',
+  ...
+});
+```
+
+### Bước 5 — Khởi chạy Server
 ```bash
 node server.js
+# hoặc
+npm start
 ```
-Nếu thành công, terminal sẽ hiện thông báo `Server is running on http://localhost:3000`.
+
+Server sẽ khởi động tại:
+```
+http://localhost:3000
+```
 
 ---
 
-## 🎮 Cách sử dụng (Luồng làm việc)
+## 🌐 Các Đường Dẫn Chính
 
-### 1. Dành cho Khách hàng
-- Truy cập: **[http://localhost:3000/](http://localhost:3000/)**
-- Do bạn đang chạy trên máy tính, hệ thống sẽ cung cấp một **Màn hình giả lập quét QR**. Bạn hãy nhấn vào một bàn bất kỳ (VD: Bàn 1) để đóng vai khách hàng ngồi tại bàn đó.
-- Lướt xem menu, thêm món vào giỏ hàng và ấn nút "Xác nhận đặt món".
+| Đường dẫn | Mô tả | Truy cập |
+|---|---|---|
+| `/login.html` | Trang đăng nhập nhân viên | Nhân viên |
+| `/thu-ngan.html` | Giao diện Thu Ngân (POS) | Thu ngân / Admin |
+| `/dau-bep.html` | Màn hình Nhà Bếp | Đầu bếp |
+| `/quan-ly.html` | Trang Quản Lý | Admin |
+| `/datmonban1` | Khách hàng quét QR Bàn 01 | Khách hàng |
+| `/datmonban2` | Khách hàng quét QR Bàn 02 | Khách hàng |
 
-### 2. Dành cho Quản lý / Chủ quán
-- Truy cập: **[http://localhost:3000/login.html](http://localhost:3000/login.html)**
-- Đăng nhập bằng tài khoản: Tên đăng nhập: `admin` | Mật khẩu: `admin`
-- Sau khi đăng nhập, bạn sẽ được đưa tới trang **Quản lý (`quan-ly.html`)**. Tại đây bạn có thể thêm bớt món ăn hoặc xem doanh thu.
-
-### 3. Dành cho Đầu bếp
-- Truy cập: **[http://localhost:3000/dau-bep.html](http://localhost:3000/dau-bep.html)**
-- Khi khách đặt món, màn hình này sẽ hiện danh sách các món cần nấu. Bếp trưởng ấn "Xong" khi hoàn thành.
-
-### 4. Dành cho Thu ngân
-- Truy cập: **[http://localhost:3000/thu-ngan.html](http://localhost:3000/thu-ngan.html)**
-- Theo dõi các bàn đang có khách. Khi khách ấn "Yêu cầu thanh toán" trên điện thoại, bàn bên màn hình thu ngân sẽ nhấp nháy đỏ.
-- Thu ngân ấn vào bàn, xem hoá đơn và ấn "Xác nhận đã thanh toán" để hoàn tất quy trình phục vụ.
+> **Lưu ý:** Mỗi bàn có một đường dẫn QR riêng, được cấu hình trong phần Quản Lý.
 
 ---
 
-## 🛠 Cấu trúc thư mục (Tech Stack)
-- **Backend:** Node.js, Express.js. API RESTful cho quản lý, xử lý file upload với Multer.
-- **Realtime:** `ws` (WebSocket) dùng để bắn tín hiệu Đặt món, Nấu xong, Gọi thanh toán giữa các bên.
-- **Database:** MySQL (Sử dụng thư viện `mysql2` dạng Promise).
-- **Frontend:** Vanilla HTML/CSS/JS thuần, không dùng Framework UI, giao diện Glassmorphism độc đáo. File được lưu trong thư mục `public/`.
+## 👥 Phân Quyền Tài Khoản
+
+| Role | Truy cập |
+|---|---|
+| `admin` | Toàn bộ hệ thống (Quản lý + Thu ngân + Bếp) |
+| `cashier` | Giao diện Thu Ngân |
+| `chef` | Giao diện Nhà Bếp |
+
+Tài khoản mặc định sau khi import SQL:
+- **Username:** `admin` / **Password:** `admin123`
+
+---
+
+## 📡 Luồng Hoạt Động
+
+```
+Khách hàng quét QR
+       │
+       ▼
+  [Đặt món] ──────────────────────────────►  Thu ngân nhận thông báo
+                                                      │
+                                             [Xác nhận gọi món]
+                                                      │
+                                                      ▼
+                                               Nhà Bếp nhận đơn
+                                                      │
+                                    ┌─────────────────┴─────────────────┐
+                              [Nấu xong]                           [Hủy món]
+                                    │                                   │
+                                    ▼                                   ▼
+                        Khách hàng nhận thông báo          Khách hàng nhận thông báo
+                        "Món đã được phục vụ"              "Món đã bị hủy + lý do"
+                                    │                                   │
+                                    └───────────────┬───────────────────┘
+                                                    ▼
+                                      Thu ngân chốt đơn → In hóa đơn
+                                                    │
+                                             [Thanh toán]
+                                                    │
+                                                    ▼
+                                           Bàn được giải phóng
+```
+
+---
+
+## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu
+
+| Bảng | Mô tả |
+|---|---|
+| `ban_an` | Thông tin bàn ăn, trạng thái, mã QR, session token |
+| `thuc_don` | Danh sách món ăn (tên, giá, loại, ảnh, mô tả) |
+| `danh_muc` | Danh mục món ăn |
+| `don_hang` | Đơn hàng theo từng phiên bàn |
+| `chi_tiet_don_hang` | Chi tiết từng món trong đơn hàng |
+| `nguoi_dung` | Tài khoản nhân viên (username, password, vai trò, họ tên) |
+| `thong_tin_nha_hang` | Thông tin nhà hàng (tên, địa chỉ, SĐT) hiển thị trên hóa đơn |
+
+---
+
+## 📱 Kết Nối Từ Điện Thoại (Cùng WiFi)
+
+Để khách hàng có thể quét QR từ điện thoại thật, hãy:
+
+1. Đảm bảo máy tính và điện thoại **kết nối cùng một mạng WiFi**
+2. Xem địa chỉ IP của máy tính (ví dụ: `192.168.1.5`)
+3. Trên điện thoại, truy cập: `http://192.168.1.5:3000/datmonban1`
+4. Hoặc tạo mã QR từ URL trên và để khách hàng quét
+
+---
+
+## 📝 License
+
+[MIT](LICENSE)
