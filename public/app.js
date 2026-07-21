@@ -251,25 +251,30 @@ function renderMenu() {
         ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : `/assets/${item.image_url}`) 
         : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
       
-      const cartItem = state.cart.find(c => c.id === item.id);
+      const totalQty = state.cart.filter(c => c.id === item.id).reduce((sum, c) => sum + c.quantity, 0);
       let actionHtml = '';
-      if (cartItem) {
+      if (totalQty > 0) {
+        // Show inline +/- button on the card for all items
         actionHtml = `
           <div class="kiot-qty-wrapper" style="border-radius: 20px; border: 1px solid #E85A23;">
             <button class="kiot-qty-btn dec-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">-</button>
-            <div class="kiot-qty-value" style="color:#E85A23;">${cartItem.quantity}</div>
+            <div class="kiot-qty-value" style="color:#E85A23;">${totalQty}</div>
             <button class="kiot-qty-btn inc-qty-btn-menu" data-id="${item.id}" style="color:#E85A23;">+</button>
           </div>
         `;
       } else {
-        actionHtml = `<button class="kiot-add-btn add-to-cart-btn" data-id="${item.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>`;
+        const badgeHtml = totalQty > 0 ? `<div style="position:absolute; top:-8px; right:-8px; background:var(--danger); color:white; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">${totalQty}</div>` : '';
+        actionHtml = `<div style="position:relative;"><button class="kiot-add-btn add-to-cart-btn" data-id="${item.id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>${badgeHtml}</div>`;
       }
+      
+      const descHtml = item.description ? `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.4;">${item.description}</div>` : '';
 
       card.innerHTML = `
         <img src="${imgUrl}" alt="${item.name}" class="kiot-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
         <div class="kiot-item-info">
           <div>
             <div class="kiot-item-name">${item.name}</div>
+            ${descHtml}
           </div>
           <div class="kiot-item-actions" id="menu-action-${item.id}" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
             <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
@@ -326,19 +331,19 @@ function updateItemCardUI(id) {
   if (!actionContainer) return;
   
   const menuItem = state.menu.find(m => m.id === id);
-  const cartItem = state.cart.find(c => c.id === id);
+  const totalQty = state.cart.filter(c => c.id === id).reduce((sum, c) => sum + c.quantity, 0);
   
   let actionHtml = '';
-  if (cartItem) {
-    actionHtml = `
+  if (totalQty > 0) {    actionHtml = `
       <div class="kiot-qty-wrapper" style="border-radius: 20px; border: 1px solid #E85A23;">
         <button class="kiot-qty-btn dec-qty-btn-menu" data-id="${id}" style="color:#E85A23;">-</button>
-        <div class="kiot-qty-value" style="color:#E85A23;">${cartItem.quantity}</div>
+        <div class="kiot-qty-value" style="color:#E85A23;">${totalQty}</div>
         <button class="kiot-qty-btn inc-qty-btn-menu" data-id="${id}" style="color:#E85A23;">+</button>
       </div>
     `;
   } else {
-    actionHtml = `<button class="kiot-add-btn add-to-cart-btn" data-id="${id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>`;
+    const badgeHtml = totalQty > 0 ? `<div style="position:absolute; top:-8px; right:-8px; background:var(--danger); color:white; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">${totalQty}</div>` : '';
+    actionHtml = `<div style="position:relative;"><button class="kiot-add-btn add-to-cart-btn" data-id="${id}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>${badgeHtml}</div>`;
   }
   
   actionContainer.innerHTML = `
@@ -357,7 +362,7 @@ function updateItemCardUI(id) {
   if (decBtn) decBtn.addEventListener('click', () => removeFromCart(id));
 }
 
-function addToCart(id, showToastMsg = true) {
+function addToCart(id, showToastMsg = true, sizeName = null, overridePrice = null) {
   if (state.table && state.table.status === 'pending_payment') {
     showToast('Bàn đã bị khoá để chờ thanh toán, không thể đặt thêm món.', 'error');
     return;
@@ -366,11 +371,20 @@ function addToCart(id, showToastMsg = true) {
   const menuItem = state.menu.find(m => m.id === id);
   if (!menuItem) return;
 
-  const cartItem = state.cart.find(c => c.id === id);
-  const currentQty = cartItem ? cartItem.quantity : 0;
+  // Handle Size Modal
+  if (menuItem.sizes && menuItem.sizes.length > 0 && !sizeName) {
+    showSizeSelectionModal(menuItem);
+    return;
+  }
+
+  const cartItemId = sizeName ? `${id}_${sizeName}` : `${id}`;
+  const cartItem = state.cart.find(c => c.cartItemId === cartItemId);
+  
+  // Calculate total quantity of this base item across all sizes for stock validation
+  const currentTotalQty = state.cart.filter(c => c.id === id).reduce((sum, c) => sum + c.quantity, 0);
   
   if (menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
-    if (currentQty + 1 > menuItem.so_luong) {
+    if (currentTotalQty + 1 > menuItem.so_luong) {
       showToast(`Món này chỉ còn ${menuItem.so_luong} phần!`, 'error');
       return;
     }
@@ -380,32 +394,81 @@ function addToCart(id, showToastMsg = true) {
     cartItem.quantity += 1;
   } else {
     state.cart.push({
+      cartItemId: cartItemId,
       id: menuItem.id,
-      name: menuItem.name,
-      price: menuItem.price,
-      quantity: 1
+      name: sizeName ? `${menuItem.name} (${sizeName})` : menuItem.name,
+      price: overridePrice !== null ? overridePrice : menuItem.price,
+      quantity: 1,
+      size_name: sizeName || null
     });
   }
 
   if (showToastMsg) {
-    showToast(`Đã thêm ${menuItem.name} vào giỏ hàng`, 'success');
+    showToast(`Đã thêm ${sizeName ? menuItem.name + ' (' + sizeName + ')' : menuItem.name} vào giỏ hàng`, 'success');
   }
   updateCartUi();
   renderCartModal();
   updateItemCardUI(id);
 }
 
-function removeFromCart(id) {
-  const cartItem = state.cart.find(c => c.id === id);
+function showSizeSelectionModal(menuItem) {
+  const container = document.getElementById('size-options-container');
+  container.innerHTML = '';
+  
+  menuItem.sizes.forEach((size, index) => {
+    const isSelected = index === 0 ? 'checked' : '';
+    container.innerHTML += `
+      <label style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--border-color); border-radius:8px; cursor:pointer;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <input type="radio" name="selected_size" value="${size.ten_size}" data-price="${size.gia_tien}" style="width:18px; height:18px; accent-color:var(--primary);" ${isSelected}>
+          <span style="font-size:15px; font-weight:600;">${size.ten_size}</span>
+        </div>
+        <div style="font-weight:700; color:var(--primary);">${formatPrice(size.gia_tien)}</div>
+      </label>
+    `;
+  });
+  
+  const confirmBtn = document.getElementById('confirm-size-btn');
+  confirmBtn.onclick = () => {
+    const selected = document.querySelector('input[name="selected_size"]:checked');
+    if (selected) {
+      document.getElementById('size-selection-modal').style.display = 'none';
+      addToCart(menuItem.id, true, selected.value, parseFloat(selected.getAttribute('data-price')));
+    }
+  };
+  
+  document.getElementById('size-selection-modal').style.display = 'flex';
+}
+
+function removeFromCart(cartItemId) {
+  // If cartItemId is an integer, it means it was called from menu card which only passes `id`
+  if (typeof cartItemId === 'number') {
+    const itemInMenu = state.menu.find(m => m.id === cartItemId);
+    if (itemInMenu && itemInMenu.sizes && itemInMenu.sizes.length > 0) {
+      // Find the last added cart item with this base id
+      const cartItems = state.cart.filter(c => c.id === cartItemId);
+      if (cartItems.length > 0) {
+        cartItemId = cartItems[cartItems.length - 1].cartItemId;
+      } else {
+        return;
+      }
+    } else {
+      cartItemId = `${cartItemId}`;
+    }
+  }
+
+  const cartItem = state.cart.find(c => c.cartItemId === cartItemId);
   if (!cartItem) return;
+
+  const baseId = cartItem.id;
 
   cartItem.quantity -= 1;
   if (cartItem.quantity <= 0) {
-    state.cart = state.cart.filter(c => c.id !== id);
+    state.cart = state.cart.filter(c => c.cartItemId !== cartItemId);
   }
   updateCartUi();
   renderCartModal();
-  updateItemCardUI(id);
+  updateItemCardUI(baseId);
 }
 
 function clearCart() {
@@ -458,21 +521,23 @@ function renderCartModal() {
     const imgUrl = menuItem && menuItem.image_url 
       ? (menuItem.image_url.startsWith('http') || menuItem.image_url.startsWith('/uploads') ? menuItem.image_url : `/assets/${menuItem.image_url}`) 
       : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
+      
+    const displayName = item.name;
 
     const div = document.createElement('div');
     div.className = 'kiot-cart-item';
     div.innerHTML = `
       <img src="${imgUrl}" class="kiot-cart-item-img" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'">
       <div class="kiot-cart-item-info">
-        <div class="kiot-cart-item-name">${item.name}</div>
+        <div class="kiot-cart-item-name">${displayName}</div>
         <div class="kiot-cart-item-price">${formatPrice(item.price)}</div>
       </div>
       <div class="kiot-cart-item-actions">
         <button class="kiot-more-btn">...</button>
         <div class="kiot-modal-qty">
-          <button class="kiot-modal-qty-btn dec-qty-btn" data-id="${item.id}">-</button>
+          <button class="kiot-modal-qty-btn dec-qty-btn" data-cart-id="${item.cartItemId}">-</button>
           <span class="kiot-modal-qty-value">${item.quantity}</span>
-          <button class="kiot-modal-qty-btn inc-qty-btn" data-id="${item.id}">+</button>
+          <button class="kiot-modal-qty-btn inc-qty-btn" data-id="${item.id}" data-size-name="${item.size_name || ''}" data-price="${item.price}">+</button>
         </div>
       </div>
     `;
@@ -481,10 +546,15 @@ function renderCartModal() {
 
   // Gán click sự kiện cộng trừ
   document.querySelectorAll('.dec-qty-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => removeFromCart(parseInt(btn.getAttribute('data-id'))));
+    btn.addEventListener('click', (e) => removeFromCart(btn.getAttribute('data-cart-id')));
   });
   document.querySelectorAll('.inc-qty-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => addToCart(parseInt(btn.getAttribute('data-id'))));
+    btn.addEventListener('click', (e) => {
+      const id = parseInt(btn.getAttribute('data-id'));
+      const sizeName = btn.getAttribute('data-size-name') || null;
+      const price = parseFloat(btn.getAttribute('data-price'));
+      addToCart(id, false, sizeName, price);
+    });
   });
 }
 
@@ -865,7 +935,7 @@ function openOrderedItems() {
         <div class="kiot-order-item-row" style="display: flex; align-items: center; padding: 12px 0; ${borderStyle}">
           <div style="font-size: 14px; font-weight: 500; width: 28px; color: var(--text-secondary);">${item.quantity}x</div>
           <div class="kiot-order-item-name" style="flex: 1; font-size: 15px; font-weight: 500; color: #333;">
-            ${item.name}
+            ${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}
           </div>
           <div class="kiot-order-badge ${badgeClass}" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${badgeText}</div>
         </div>

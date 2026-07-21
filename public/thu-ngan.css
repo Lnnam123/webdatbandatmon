@@ -525,7 +525,8 @@ input[type="radio"]:checked + .radio-custom::after {
 /* ================= INVOICE PRINT TEMPLATE ================= */
 .invoice-container {
   width: 80mm;
-  padding: 10mm;
+  padding: 5mm;
+  box-sizing: border-box;
   background: white;
   color: black;
   font-family: monospace;

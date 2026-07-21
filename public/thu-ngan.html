@@ -16,6 +16,15 @@
       alert("UNHANDLED PROMISE REJECTION: " + event.reason);
     });
   </script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
 </head>
 
 <body>
@@ -32,12 +41,10 @@
           <div class="pos-tab" data-target="view-menu"><i class="icon-menu"></i> Thực đơn</div>
         </div>
         <div class="pos-top-actions">
-          <button class="pos-icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg></button>
-          <button class="pos-icon-btn">+</button>
+          <button class="pos-icon-btn" style="position: relative; width: auto; padding: 0 12px; font-size: 14px; font-weight: 600; border-radius: 4px; background: rgba(255,255,255,0.2);" onclick="switchConfirmTab('unconfirmed', 0); document.getElementById('confirm-orders-modal').style.display='flex'">
+              Xác nhận gọi món
+              <span id="unconfirmed-count" style="display: none; position: absolute; top: -6px; right: -8px; background: #ef4444; color: white; font-size: 11px; font-weight: bold; border-radius: 50%; min-width: 18px; height: 18px; text-align: center; line-height: 18px; padding: 0 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">0</span>
+            </button>
           <div class="pos-user" id="user-menu-btn" style="position: relative; cursor: pointer;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -74,13 +81,7 @@
           <div class="area-tab">VIP</div>
         </div>
 
-        <div class="pos-notification-bell" id="btn-show-unconfirmed" style="display: none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
-          <span id="unconfirmed-count">0 lượt gọi món qua QR</span>
-        </div>
+
       </div>
 
       <!-- Grid Bàn -->
@@ -88,12 +89,11 @@
         <!-- Render bằng JS -->
       </div>
 
-      <div class="pos-footer-left">
-        <label><input type="checkbox"> Mở thực đơn khi chọn bàn</label>
-        <div class="pos-pagination">
-          <button>&lt;</button>
-          <span>1 / 1</span>
-          <button>&gt;</button>
+      <div class="pos-footer-left" style="justify-content: flex-end;">
+        <div class="pos-pagination" style="display: flex; align-items: center; gap: 8px;">
+          <button style="display:inline-flex; align-items:center; justify-content:center; padding:2px 4px; cursor:pointer;"><i class="material-icons" style="font-size:18px;">chevron_left</i></button>
+          <span>1/1</span>
+          <button style="display:inline-flex; align-items:center; justify-content:center; padding:2px 4px; cursor:pointer;"><i class="material-icons" style="font-size:18px;">chevron_right</i></button>
         </div>
       </div>
     
@@ -379,54 +379,77 @@
   <!-- Modal Thêm/Sửa Món Mới -->
   <div id="add-menu-modal"
     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
-    <div
-      style="background:var(--bg-card); width:400px; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-lg);">
-      <h3 id="menu-modal-title" style="margin-top:0; margin-bottom:20px;">Thêm món mới</h3>
+    <div class="no-scrollbar" style="background:var(--bg-card); width:800px; max-width:90vw; max-height:90vh; overflow-y:auto; border-radius:20px; padding:24px; box-shadow:var(--shadow-lg);">
+      <h3 id="menu-modal-title" style="margin-top:0; margin-bottom:20px; font-size:20px; font-weight:700;">Thêm món mới</h3>
       <input type="hidden" id="edit-menu-id">
 
-      <div style="margin-bottom:15px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Tên món *</label>
-        <input type="text" id="new-ten-mon" class="kv-input" placeholder="Nhập tên món ăn">
-      </div>
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <!-- Left: Image Upload -->
+        <div style="flex: 1; min-width: 250px;">
+          <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Ảnh món ăn</label>
+          <div class="upload-drop-zone" id="upload-drop-zone" style="min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <img id="preview-anh-minh-hoa" src="" style="display: none; max-height: 200px; object-fit: contain;" class="preview-image" alt="Preview">
+            <svg class="upload-icon" id="upload-icon-svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+              <path d="M12 12v9"></path>
+              <path d="m16 16-4-4-4 4"></path>
+            </svg>
+            <div class="upload-title" id="upload-title-text" style="text-align: center;">Kéo thả ảnh vào đây hoặc chọn tệp</div>
+            <div class="upload-subtitle" id="upload-subtitle-text" style="text-align: center;">Chấp nhận .jpg, .png. Kích thước &lt; 2MB</div>
+            <button type="button" class="btn-browse" id="btn-browse-file" style="margin-top: 10px;">Chọn tệp</button>
 
-      <div style="margin-bottom:15px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Phân loại món *</label>
-        <select id="new-loai-mon" class="kv-select">
-          <!-- Load động từ server -->
-        </select>
-      </div>
+            <input type="file" id="new-anh-minh-hoa" accept="image/*" onchange="previewImage(event)" style="display: none;">
+          </div>
+        </div>
 
-      <div style="margin-bottom:15px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Ảnh món ăn</label>
-        <div class="upload-drop-zone" id="upload-drop-zone">
-          <img id="preview-anh-minh-hoa" src="" style="display: none;" class="preview-image" alt="Preview">
-          <svg class="upload-icon" id="upload-icon-svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
-            <path d="M12 12v9"></path>
-            <path d="m16 16-4-4-4 4"></path>
-          </svg>
-          <div class="upload-title" id="upload-title-text">Kéo thả ảnh vào đây hoặc chọn tệp</div>
-          <div class="upload-subtitle" id="upload-subtitle-text">Chấp nhận .jpg, .png. Kích thước &lt; 2MB</div>
-          <button type="button" class="btn-browse" id="btn-browse-file">Chọn tệp</button>
+        <!-- Right: Form Details -->
+        <div style="flex: 1.5; min-width: 300px; display: flex; flex-direction: column; gap: 15px;">
+          <div>
+            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Tên món *</label>
+            <input type="text" id="new-ten-mon" class="kv-input" placeholder="Nhập tên món ăn">
+          </div>
 
-          <input type="file" id="new-anh-minh-hoa" accept="image/*" onchange="previewImage(event)">
+          <div>
+            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Phân loại món *</label>
+            <select id="new-loai-mon" class="kv-select">
+              <!-- Load động từ server -->
+            </select>
+          </div>
+
+          <div>
+            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Giá bán cơ bản *</label>
+            <input type="number" id="new-gia-tien" class="kv-input" placeholder="0">
+          </div>
+
+          <div style="padding: 10px; background: var(--bg-main); border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <label style="display:block; font-size:13px; font-weight:600; margin-bottom:0;">Tuỳ chọn Kích cỡ / Loại (Tuỳ chọn)</label>
+              <button type="button" class="kv-btn-outline" title="Thêm tuỳ chọn"
+                style="padding: 4px; font-size: 14px; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%;"
+                onclick="addSizeRow()">
+                <span class="material-icons" style="font-size: 18px;">add</span>
+              </button>
+            </div>
+            <div id="sizes-container" style="display:flex; flex-direction:column; gap:8px;">
+              <!-- Các dòng size sẽ được thêm bằng JS -->
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Danh sách Combo (Tuỳ chọn)</label>
+            <textarea id="new-mo-ta" class="kv-input" placeholder="Ví dụ: 1 Gà rán + 1 Khoai tây chiên..." rows="2" style="width:100%; font-family:inherit;"></textarea>
+          </div>
+
+          <div>
+            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Số lượng kho *</label>
+            <input type="number" id="new-so-luong" class="kv-input" placeholder="0">
+          </div>
         </div>
       </div>
 
-      <div style="margin-bottom:15px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Giá bán *</label>
-        <input type="number" id="new-gia-tien" class="kv-input" placeholder="0">
-      </div>
-
-      <div style="margin-bottom:15px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Số lượng món *</label>
-        <input type="number" id="new-so-luong" class="kv-input" placeholder="0">
-      </div>
-
-      <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button class="kv-btn-default" onclick="document.getElementById('add-menu-modal').style.display='none'">Hủy
-          bỏ</button>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+        <button class="kv-btn-default" onclick="document.getElementById('add-menu-modal').style.display='none'">Hủy bỏ</button>
         <button class="kv-btn-primary" onclick="submitAddMenu()">Lưu lại</button>
       </div>
     </div>
@@ -518,10 +541,10 @@
       <table class="invoice-table">
         <thead>
           <tr>
-            <th style="width: 35%">Tên món</th>
-            <th style="width: 10%; text-align: center;">SL</th>
-            <th style="width: 25%; text-align: right; padding-right: 10px;">Đơn giá</th>
-            <th style="width: 30%; text-align: right;">Thành tiền</th>
+            <th style="width: 40%">Tên món</th>
+            <th style="width: 12%; text-align: center;">SL</th>
+            <th style="width: 20%; text-align: right;">Đơn giá</th>
+            <th style="width: 28%; text-align: right;">Thành tiền</th>
           </tr>
         </thead>
         <tbody id="inv-items">

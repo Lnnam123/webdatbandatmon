@@ -124,6 +124,16 @@ export async function initDb() {
     } catch (e) {}
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS thuc_don_size (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_mon_an INT NOT NULL,
+        ten_size VARCHAR(50) NOT NULL,
+        gia_tien DOUBLE NOT NULL,
+        FOREIGN KEY (id_mon_an) REFERENCES thuc_don(id) ON DELETE CASCADE
+      )
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS don_hang (
         id INT AUTO_INCREMENT PRIMARY KEY,
         id_ban INT NOT NULL,
@@ -163,6 +173,7 @@ export async function initDb() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         id_don_hang INT NOT NULL,
         id_mon_an INT NOT NULL,
+        ten_size VARCHAR(50) DEFAULT NULL,
         so_luong INT NOT NULL,
         gia_ban DOUBLE NOT NULL,
         trang_thai VARCHAR(50) NOT NULL DEFAULT 'cooking',
@@ -171,6 +182,10 @@ export async function initDb() {
         FOREIGN KEY (id_mon_an) REFERENCES thuc_don(id) ON DELETE CASCADE
       )
     `);
+    
+    try {
+      await pool.query(`ALTER TABLE chi_tiet_don_hang ADD COLUMN ten_size VARCHAR(50) DEFAULT NULL`);
+    } catch (e) {}
 
     console.log('MySQL Database tables verified/created successfully.');
   } catch (err) {
@@ -273,7 +288,8 @@ export async function createOrder(tableId, sessionToken, cart, note = '') {
 
   let totalAmount = 0;
   cart.forEach(item => {
-    const p = priceMap[item.id] || 0;
+    // If the cart item has its own price (e.g. from size), use it. Otherwise use the base price.
+    const p = item.price !== undefined ? item.price : (priceMap[item.id] || 0);
     totalAmount += p * item.quantity;
   });
 
@@ -305,11 +321,12 @@ export async function createOrder(tableId, sessionToken, cart, note = '') {
   }
 
   for (const item of cart) {
-    const menuItem = await dbGet('SELECT gia_tien, so_luong FROM thuc_don WHERE id = ?', [item.id]);
+    const menuItem = await dbGet('SELECT so_luong FROM thuc_don WHERE id = ?', [item.id]);
     if (menuItem) {
+      const p = item.price !== undefined ? item.price : 0;
       await dbRun(
-        'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, so_luong, gia_ban, trang_thai) VALUES (?, ?, ?, ?, ?)',
-        [orderId, item.id, item.quantity, menuItem.gia_tien, 'unconfirmed']
+        'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, ten_size, so_luong, gia_ban, trang_thai) VALUES (?, ?, ?, ?, ?, ?)',
+        [orderId, item.id, item.size_name || null, item.quantity, p, 'unconfirmed']
       );
       // Giảm số lượng tồn kho
       if (menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
@@ -330,7 +347,7 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
   if (!order) return null;
 
   const items = await dbAll(
-    `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
+    `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, oi.ten_size, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
      FROM chi_tiet_don_hang oi
      JOIN thuc_don mi ON oi.id_mon_an = mi.id
      WHERE oi.id_don_hang = ?`,
@@ -423,7 +440,14 @@ export async function confirmPayment(tableId) {
 }
 
 export async function getMenuItems() {
-  return await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available, so_luong FROM thuc_don WHERE con_hang = 1');
+  const items = await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available, so_luong FROM thuc_don WHERE con_hang = 1');
+  const sizes = await dbAll('SELECT id, id_mon_an, ten_size, gia_tien FROM thuc_don_size');
+  
+  // Gắn mảng sizes vào mỗi món
+  items.forEach(item => {
+    item.sizes = sizes.filter(s => s.id_mon_an === item.id);
+  });
+  return items;
 }
 
 export async function addMenuItem(data) {
@@ -439,7 +463,19 @@ export async function addMenuItem(data) {
       data.so_luong || 0
     ]
   );
-  return result.insertId;
+  
+  const insertId = result.insertId;
+  
+  if (data.sizes && Array.isArray(data.sizes) && data.sizes.length > 0) {
+    for (const size of data.sizes) {
+      await dbRun(
+        'INSERT INTO thuc_don_size (id_mon_an, ten_size, gia_tien) VALUES (?, ?, ?)',
+        [insertId, size.ten_size, size.gia_tien]
+      );
+    }
+  }
+  
+  return insertId;
 }
 
 export async function updateMenuItem(id, data) {
@@ -453,10 +489,21 @@ export async function updateMenuItem(id, data) {
   if (data.mo_ta !== undefined) { fields.push('mo_ta = ?'); params.push(data.mo_ta); }
   if (data.so_luong !== undefined) { fields.push('so_luong = ?'); params.push(data.so_luong); }
   
-  if (fields.length === 0) return;
-  params.push(id);
+  if (fields.length > 0) {
+    params.push(id);
+    await dbRun(`UPDATE thuc_don SET ${fields.join(', ')} WHERE id = ?`, params);
+  }
   
-  await dbRun(`UPDATE thuc_don SET ${fields.join(', ')} WHERE id = ?`, params);
+  if (data.sizes && Array.isArray(data.sizes)) {
+    // Delete old sizes and insert new ones
+    await dbRun('DELETE FROM thuc_don_size WHERE id_mon_an = ?', [id]);
+    for (const size of data.sizes) {
+      await dbRun(
+        'INSERT INTO thuc_don_size (id_mon_an, ten_size, gia_tien) VALUES (?, ?, ?)',
+        [id, size.ten_size, size.gia_tien]
+      );
+    }
+  }
 }
 
 export async function getCategories() {
@@ -489,7 +536,7 @@ export async function deleteMenuItems(ids) {
 
 export async function getChefActiveItems() {
   return await dbAll(`
-    SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.trang_thai as status, mi.ten_mon as name, t.ten_ban as table_number, t.id as table_id, o.ma_phien as session_token, o.id as order_id, o.ngay_tao as created_at
+    SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.trang_thai as status, oi.ten_size, mi.ten_mon as name, t.ten_ban as table_number, t.id as table_id, o.ma_phien as session_token, o.id as order_id, o.ngay_tao as created_at
     FROM chi_tiet_don_hang oi
     JOIN thuc_don mi ON oi.id_mon_an = mi.id
     JOIN don_hang o ON oi.id_don_hang = o.id

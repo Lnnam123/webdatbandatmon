@@ -18,7 +18,6 @@ const btnPrintTemp = document.getElementById('btn-print-temp');
 const toastNotification = document.getElementById('toast-notification');
 const toastMessage = document.getElementById('toast-message');
 
-const btnShowUnconfirmed = document.getElementById('btn-show-unconfirmed');
 const unconfirmedCountBadge = document.getElementById('unconfirmed-count');
 const confirmOrdersModal = document.getElementById('confirm-orders-modal');
 const closeConfirmModal = document.getElementById('close-confirm-modal');
@@ -193,7 +192,8 @@ function renderRightPane() {
     row.innerHTML = `
       <div class="pos-item-idx">${index++}</div>
       <div>
-        <div class="pos-item-name">${item.name}</div>
+        <div class="pos-item-name">${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</div>
+        <div class="pos-item-price">${formatPrice(item.price)}</div>
       </div>
       <div class="pos-item-qty">
         <button class="pos-qty-btn" onclick="openCancelQtyModal(${item.order_item_id}, '${item.name}', ${item.quantity}, 1, false)">-</button>
@@ -233,79 +233,132 @@ window.updateItemQty = async (orderItemId, newQty) => {
 };
 
 // ================= TÍNH NĂNG CHỜ DUYỆT (UNCONFIRMED) =================
+let currentConfirmTab = 'unconfirmed';
+let allCategorizedOrders = { unconfirmed: {}, confirmed: {}, canceled: {} };
+
 function checkUnconfirmedOrders() {
-  const unconfirmedByTable = {};
+  allCategorizedOrders = { unconfirmed: {}, confirmed: {}, canceled: {} };
   
   tables.forEach(t => {
     if (t.active_order && t.active_order.items) {
       const unconfItems = t.active_order.items.filter(i => i.status === 'unconfirmed');
-      if (unconfItems.length > 0) {
-        unconfirmedByTable[t.id] = { table: t, items: unconfItems };
-      }
+      const confItems = t.active_order.items.filter(i => ['cooking', 'done'].includes(i.status));
+      const cancItems = t.active_order.items.filter(i => i.status === 'canceled');
+      
+      if (unconfItems.length > 0) allCategorizedOrders.unconfirmed[t.id] = { table: t, items: unconfItems };
+      if (confItems.length > 0) allCategorizedOrders.confirmed[t.id] = { table: t, items: confItems };
+      if (cancItems.length > 0) allCategorizedOrders.canceled[t.id] = { table: t, items: cancItems };
     }
   });
 
-  const tableCount = Object.keys(unconfirmedByTable).length;
-  if (tableCount > 0) {
-    btnShowUnconfirmed.style.display = 'flex';
-    unconfirmedCountBadge.textContent = `${tableCount} lượt gọi món qua QR`;
+  const unconfCount = Object.keys(allCategorizedOrders.unconfirmed).length;
+  const confCount = Object.keys(allCategorizedOrders.confirmed).length;
+  const cancCount = Object.keys(allCategorizedOrders.canceled).length;
+
+  if (unconfCount > 0) {
+    unconfirmedCountBadge.style.display = 'inline-block';
+    unconfirmedCountBadge.textContent = unconfCount;
   } else {
-    btnShowUnconfirmed.style.display = 'none';
+    unconfirmedCountBadge.style.display = 'none';
   }
 
-  renderConfirmModal(unconfirmedByTable);
+  const tabs = document.querySelectorAll('.pos-modal-tabs .modal-tab');
+  if (tabs.length >= 3) {
+    tabs[0].innerHTML = `Chưa xác nhận (<span id="unconf-count-modal">${unconfCount}</span>)`;
+    tabs[1].textContent = `Đã xác nhận (${confCount})`;
+    tabs[2].textContent = `Hủy gọi món (${cancCount})`;
+  }
+
+  renderConfirmModal(allCategorizedOrders);
 }
 
-btnShowUnconfirmed.addEventListener('click', () => {
-  confirmOrdersModal.style.display = 'flex';
+document.addEventListener('DOMContentLoaded', () => {
+  const tabs = document.querySelectorAll('.pos-modal-tabs .modal-tab');
+  if (tabs.length >= 3) {
+    tabs[0].addEventListener('click', () => switchConfirmTab('unconfirmed', 0));
+    tabs[1].addEventListener('click', () => switchConfirmTab('confirmed', 1));
+    tabs[2].addEventListener('click', () => switchConfirmTab('canceled', 2));
+  }
 });
+
+function switchConfirmTab(tabName, index) {
+  currentConfirmTab = tabName;
+  const tabs = document.querySelectorAll('.pos-modal-tabs .modal-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  if (tabs[index]) tabs[index].classList.add('active');
+  renderConfirmModal(allCategorizedOrders);
+}
+
 closeConfirmModal.addEventListener('click', () => {
   confirmOrdersModal.style.display = 'none';
 });
 
-function renderConfirmModal(unconfirmedByTable) {
+function renderConfirmModal(categorized) {
   unconfirmedList.innerHTML = '';
-  const keys = Object.keys(unconfirmedByTable);
-  unconfCountModal.textContent = keys.length;
+  const dataMap = categorized[currentConfirmTab] || {};
+  const keys = Object.keys(dataMap);
 
   if (keys.length === 0) {
-    unconfirmedList.innerHTML = '<div style="text-align:center; padding: 20px;">Không có yêu cầu gọi món mới.</div>';
+    unconfirmedList.innerHTML = '<div style="text-align:center; padding: 20px; color:#666;">Không có yêu cầu gọi món nào.</div>';
     return;
   }
 
   keys.forEach(tableId => {
-    const data = unconfirmedByTable[tableId];
+    const data = dataMap[tableId];
     const orderTime = new Date(data.table.active_order.created_at);
     const timeDiff = Math.floor((new Date() - orderTime) / 60000); // phút
 
     const block = document.createElement('div');
     block.className = 'unconf-block';
     
-    let itemsHtml = data.items.map(i => `
-      <div class="unconf-item" style="display: flex; justify-content: space-between; align-items: center;">
-        <span>${i.quantity} x ${i.name}</span>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span>${formatPrice(i.price * i.quantity)}</span>
-          <button onclick="openCancelQtyModal(${i.order_item_id}, '${i.name}', ${i.quantity}, ${i.quantity}, true)" style="background:none; border:none; cursor:pointer; color:#000; display:flex; align-items:center; justify-content:center; padding: 4px;">
+    let itemsHtml = data.items.map(i => {
+      let actionBtns = '';
+      if (currentConfirmTab === 'unconfirmed' || currentConfirmTab === 'confirmed') {
+        actionBtns = `
+          <button onclick="openCancelQtyModal(${i.order_item_id}, '${i.name}', ${i.quantity}, ${i.quantity}, true)" style="background:none; border:none; cursor:pointer; color:#000; display:flex; align-items:center; justify-content:center; padding: 4px;" title="Giảm/Hủy món">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
+        `;
+      }
+      
+      let badge = '';
+      if (currentConfirmTab === 'confirmed') {
+         badge = i.status === 'cooking' ? '<span style="color:#f59e0b; font-size:12px; margin-left:8px; font-weight:600;">Đang chế biến</span>' : '<span style="color:#10b981; font-size:12px; margin-left:8px; font-weight:600;">Đã phục vụ</span>';
+      } else if (currentConfirmTab === 'canceled') {
+         badge = '<span style="color:#ef4444; font-size:12px; margin-left:8px; font-weight:600;">Đã hủy</span>';
+      }
+
+      return `
+        <div class="unconf-item" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>${i.quantity} x ${i.ten_size ? i.name + ' (' + i.ten_size + ')' : i.name} ${badge}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>${formatPrice(i.price * i.quantity)}</span>
+            ${actionBtns}
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
+
+    let actionsHtml = '';
+    if (currentConfirmTab === 'unconfirmed') {
+      actionsHtml = `
+        <div class="unconf-actions">
+          <button class="unconf-btn-cancel" onclick="openRejectOrderModal(${tableId}, '${data.table.table_number}')">Hủy toàn bộ</button>
+          <button class="unconf-btn-confirm" onclick="confirmOrder(${tableId})">Xác nhận</button>
+        </div>
+      `;
+    }
 
     block.innerHTML = `
       <div class="unconf-header">
         <div>${data.table.table_number} - Tất cả <span class="unconf-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${timeDiff} phút trước</span></div>
-        <span style="color:#10b981; font-size:12px; font-weight:normal;">Đang phục vụ</span>
+        ${currentConfirmTab === 'confirmed' ? '<span style="color:#10b981; font-size:12px;">Đã xác nhận</span>' : ''}
       </div>
       ${data.table.active_order.note ? `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin: 12px 12px 0 12px; border-radius: 4px;">📝 Ghi chú: <b>${data.table.active_order.note}</b></div>` : ''}
       <div class="unconf-items">
         ${itemsHtml}
       </div>
-      <div class="unconf-actions">
-        <button class="unconf-btn-cancel" onclick="openRejectOrderModal(${tableId}, '${data.table.table_number}')">Hủy</button>
-        <button class="unconf-btn-confirm" onclick="confirmOrder(${tableId})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Xác nhận và Báo bếp</button>
-      </div>
+      ${actionsHtml}
     `;
     unconfirmedList.appendChild(block);
   });
@@ -320,8 +373,7 @@ window.confirmOrder = async (tableId) => {
     });
     if (res.ok) {
       showToast('Đã xác nhận và báo bếp thành công!');
-      document.getElementById('confirm-orders-modal').style.display = 'none';
-      // Tự cập nhật qua socket nên k cần reload
+      await loadTables();
     }
   } catch (err) {
     showToast('Lỗi khi duyệt món', false);
@@ -391,7 +443,7 @@ document.getElementById('cancel-qty-confirm').addEventListener('click', async ()
     if (res.ok) {
       showToast('Đã cập nhật đơn hàng thành công!');
       closeCancelQtyModal();
-      loadTables();
+      await loadTables();
     } else {
       showToast('Lỗi khi hủy món', false);
     }
@@ -437,8 +489,7 @@ document.getElementById('reject-order-confirm').addEventListener('click', async 
       }
       showToast('Đã từ chối các món gọi thành công!');
       closeRejectOrderModal();
-      confirmOrdersModal.style.display = 'none'; // Đóng modal danh sách chờ nếu rỗng
-      loadTables();
+      await loadTables();
     } catch(err) {
       showToast('Lỗi kết nối khi hủy', false);
     }
@@ -550,9 +601,9 @@ btnPrintTemp.addEventListener('click', () => {
     totalPrice += itemTotal;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${item.name}</td>
+      <td>${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</td>
       <td style="text-align: center;">${item.quantity}</td>
-      <td style="text-align: right; padding-right: 10px;">${formatPrice(item.price)}</td>
+      <td style="text-align: right;">${formatPrice(item.price)}</td>
       <td style="text-align: right;">${formatPrice(itemTotal)}</td>
     `;
     invItemsBody.appendChild(tr);
@@ -562,21 +613,90 @@ btnPrintTemp.addEventListener('click', () => {
 
   // Generate PDF
   const element = document.getElementById('invoice-template');
-  const safeTableName = selectedTable.table_number.replace(/\s+/g, '_');
-  const fileDate = `${now.getHours()}h${now.getMinutes()}_${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}`;
+  
+  // Hiển thị tạm để lấy chiều cao nội dung
+  element.parentElement.style.display = 'block';
+  const pxHeight = element.offsetHeight;
+  element.parentElement.style.display = 'none';
+  
+  // Chuyển đổi px sang mm (1px ~ 0.264583 mm) và cộng thêm 5mm lề
+  const heightInMm = (pxHeight * 0.264583) + 5;
+
+  const fileDate = `${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}`;
+  const fileTime = `${now.getHours()}h${now.getMinutes()}`;
+  const fileName = `${selectedTable.table_number} - ${fileTime} - ${fileDate}.pdf`;
   
   const opt = {
     margin:       0,
-    filename:     `HoaDon_${safeTableName}_${fileDate}.pdf`,
+    filename:     fileName,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2 },
-    jsPDF:        { unit: 'mm', format: [80, 297], orientation: 'portrait' }
+    jsPDF:        { unit: 'mm', format: [80, heightInMm], orientation: 'portrait' }
   };
 
   showToast('Đang tạo hóa đơn PDF...');
   
-  // Use html2pdf to open in new window
-  html2pdf().set(opt).from(element).output('dataurlnewwindow');
+  // Mở tab trống ngay lập tức để tránh trình duyệt chặn popup
+  const previewWindow = window.open('', '_blank');
+  if (previewWindow) {
+    previewWindow.document.write('<p style="font-family: sans-serif; padding: 20px;">Đang tạo hoá đơn, vui lòng chờ...</p>');
+  }
+  
+  // Tạo blob và xử lý
+  html2pdf().set(opt).from(element).output('blob').then((pdfBlob) => {
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    
+    if (previewWindow) {
+      const viewerHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${fileName}</title>
+          <style>
+            body { margin: 0; padding: 0; background: #525659; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; overflow: hidden; }
+            .header { background: #323639; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
+            .filename { font-size: 15px; font-weight: 500; letter-spacing: 0.5px; }
+            .actions { display: flex; gap: 12px; }
+            .btn { padding: 6px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: background 0.2s; }
+            .btn-print { background: transparent; color: #8ab4f8; border: 1px solid #8ab4f8; }
+            .btn-print:hover { background: rgba(138, 180, 248, 0.1); }
+            .btn-download { background: #8ab4f8; color: #202124; }
+            .btn-download:hover { background: #aecbfa; }
+            iframe { flex: 1; border: none; width: 100%; background: #525659; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="filename">${fileName}</div>
+            <div class="actions">
+              <button class="btn btn-print" onclick="printPdf()">In hoá đơn</button>
+              <button class="btn btn-download" onclick="downloadPdf()">Tải xuống</button>
+            </div>
+          </div>
+          <iframe id="pdf-frame" src="${blobUrl}#toolbar=0&view=FitH"></iframe>
+          <script>
+            function downloadPdf() {
+              const a = document.createElement('a');
+              a.href = '${blobUrl}';
+              a.download = '${fileName}';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }
+            function printPdf() {
+              const iframe = document.getElementById('pdf-frame');
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }
+          </script>
+        </body>
+        </html>
+      `;
+      previewWindow.document.open();
+      previewWindow.document.write(viewerHtml);
+      previewWindow.document.close();
+    }
+  });
 });
 
 // INIT
@@ -884,6 +1004,22 @@ async function adjustStockLocally(id, diff) {
   }
 }
 
+function addSizeRow(tenSize = '', giaTien = '') {
+  const container = document.getElementById('sizes-container');
+  const row = document.createElement('div');
+  row.style.display = 'flex';
+  row.style.gap = '8px';
+  row.className = 'size-row';
+  row.innerHTML = `
+    <input type="text" class="kv-input size-name" placeholder="Tuỳ chọn (Vd: Lớn, Nhỏ...)" style="flex:1;" value="${tenSize}">
+    <input type="number" class="kv-input size-price" placeholder="Giá tiền" style="flex:1;" value="${giaTien}">
+    <button type="button" class="kv-btn-outline" style="padding: 4px; color: var(--danger); border-color: var(--danger); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%;" onclick="this.parentElement.remove()" title="Xoá">
+      <span class="material-icons" style="font-size: 18px;">delete_outline</span>
+    </button>
+  `;
+  container.appendChild(row);
+}
+
 function openAddMenuModal() {
   document.getElementById('edit-menu-id').value = '';
   document.getElementById('menu-modal-title').textContent = 'Thêm món mới';
@@ -891,6 +1027,8 @@ function openAddMenuModal() {
   document.getElementById('new-gia-tien').value = '';
   document.getElementById('new-so-luong').value = '0';
   document.getElementById('new-anh-minh-hoa').value = '';
+  document.getElementById('new-mo-ta').value = '';
+  document.getElementById('sizes-container').innerHTML = '';
 
   document.getElementById('preview-anh-minh-hoa').src = '';
   document.getElementById('preview-anh-minh-hoa').style.display = 'none';
@@ -912,6 +1050,15 @@ function editMenu(id) {
   document.getElementById('new-gia-tien').value = item.price;
   document.getElementById('new-so-luong').value = item.so_luong !== undefined ? item.so_luong : 0;
   document.getElementById('new-anh-minh-hoa').value = '';
+  document.getElementById('new-mo-ta').value = item.description || '';
+  
+  const sizesContainer = document.getElementById('sizes-container');
+  sizesContainer.innerHTML = '';
+  if (item.sizes && item.sizes.length > 0) {
+    item.sizes.forEach(size => {
+      addSizeRow(size.ten_size, size.gia_tien);
+    });
+  }
 
   const imgUrl = item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : '/assets/' + item.image_url) : '';
 
@@ -952,8 +1099,19 @@ async function submitAddMenu() {
   const loai_mon = document.getElementById('new-loai-mon').value;
   const gia_tien = document.getElementById('new-gia-tien').value;
   const so_luong = document.getElementById('new-so-luong').value;
+  const mo_ta = document.getElementById('new-mo-ta').value.trim();
   const fileInput = document.getElementById('new-anh-minh-hoa');
   const oldImage = document.getElementById('preview-anh-minh-hoa').dataset.oldImage;
+  
+  // Extract sizes
+  const sizes = [];
+  document.querySelectorAll('#sizes-container .size-row').forEach(row => {
+    const tenSize = row.querySelector('.size-name').value.trim();
+    const giaTienSize = parseFloat(row.querySelector('.size-price').value);
+    if (tenSize && !isNaN(giaTienSize)) {
+      sizes.push({ ten_size: tenSize, gia_tien: giaTienSize });
+    }
+  });
 
   if (!ten_mon || !gia_tien) {
     alert('Vui lòng nhập đầy đủ Tên và Giá!');
@@ -999,7 +1157,9 @@ async function submitAddMenu() {
         loai_mon,
         gia_tien: parseFloat(gia_tien),
         so_luong: parseInt(so_luong) || 0,
-        anh_minh_hoa
+        anh_minh_hoa,
+        mo_ta,
+        sizes
       })
     });
 

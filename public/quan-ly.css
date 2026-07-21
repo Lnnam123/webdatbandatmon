@@ -44,6 +44,8 @@ body {
   height: 64px;
   border-bottom: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  z-index: 100;
 }
 
 .kv-logo {

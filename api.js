@@ -100,14 +100,28 @@ export default function createApiRouter(broadcast) {
     }
 
     try {
-      // Validate stock
+      // Validate stock & price
       for (const item of cart) {
-        const menuItem = await db.dbGet('SELECT ten_mon, so_luong FROM thuc_don WHERE id = ?', [item.id]);
-        if (menuItem && menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
-          if (item.quantity > menuItem.so_luong) {
-            return res.status(400).json({ 
-              error: `Món "${menuItem.ten_mon}" chỉ còn ${menuItem.so_luong} phần. Vui lòng giảm số lượng.` 
-            });
+        const menuItem = await db.dbGet('SELECT ten_mon, so_luong, gia_tien FROM thuc_don WHERE id = ?', [item.id]);
+        if (menuItem) {
+          if (menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
+            if (item.quantity > menuItem.so_luong) {
+              return res.status(400).json({ 
+                error: `Món "${menuItem.ten_mon}" chỉ còn ${menuItem.so_luong} phần. Vui lòng giảm số lượng.` 
+              });
+            }
+          }
+          
+          // Verify price based on size
+          if (item.size_name) {
+            const sizeData = await db.dbGet('SELECT gia_tien FROM thuc_don_size WHERE id_mon_an = ? AND ten_size = ?', [item.id, item.size_name]);
+            if (sizeData) {
+              item.price = sizeData.gia_tien;
+            } else {
+              item.price = menuItem.gia_tien; // Fallback
+            }
+          } else {
+            item.price = menuItem.gia_tien;
           }
         }
       }
@@ -339,13 +353,13 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong } = req.body;
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes } = req.body;
       if (!ten_mon || !gia_tien || !loai_mon) {
         return res.status(400).json({ error: 'Thiếu thông tin bắt buộc (Tên, Giá, Loại)' });
       }
 
       const id = await db.addMenuItem({
-        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong
+        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes
       });
       res.json({ success: true, id });
     } catch (err) {
@@ -368,8 +382,8 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong } = req.body;
-      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong });
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes } = req.body;
+      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes });
       res.json({ success: true });
     } catch (err) {
       console.error(err);

@@ -249,7 +249,7 @@
               <span class="table-badge">${item.table_number}</span>
               <span class="time-elapsed" data-time="${item.created_at}">${formatTimeElapsed(item.created_at)}</span>
             </div>
-            <h4 style="font-size: 18px; font-weight:800;">${item.name}</h4>
+            <h4 style="font-size: 18px; font-weight:800;">${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</h4>
             <div style="font-size: 15px; color: var(--primary); font-weight:800; margin-top: 6px;">Số lượng: x${item.quantity}</div>
           </div>
           <div style="display: flex; gap: 10px;">

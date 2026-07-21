@@ -287,6 +287,22 @@ async function adjustStockLocally(id, diff) {
   }
 }
 
+function addSizeRow(tenSize = '', giaTien = '') {
+  const container = document.getElementById('sizes-container');
+  const row = document.createElement('div');
+  row.style.display = 'flex';
+  row.style.gap = '8px';
+  row.className = 'size-row';
+  row.innerHTML = `
+    <input type="text" class="kv-input size-name" placeholder="Tuỳ chọn (Vd: Lớn, Nhỏ...)" style="flex:1;" value="${tenSize}">
+    <input type="number" class="kv-input size-price" placeholder="Giá tiền" style="flex:1;" value="${giaTien}">
+    <button type="button" class="kv-btn-outline" style="padding: 4px; color: var(--danger); border-color: var(--danger); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%;" onclick="this.parentElement.remove()" title="Xoá">
+      <span class="material-icons" style="font-size: 18px;">delete_outline</span>
+    </button>
+  `;
+  container.appendChild(row);
+}
+
 function openAddMenuModal() {
   document.getElementById('edit-menu-id').value = '';
   document.getElementById('menu-modal-title').textContent = 'Thêm món mới';
@@ -294,6 +310,8 @@ function openAddMenuModal() {
   document.getElementById('new-gia-tien').value = '';
   document.getElementById('new-so-luong').value = '0';
   document.getElementById('new-anh-minh-hoa').value = '';
+  document.getElementById('new-mo-ta').value = '';
+  document.getElementById('sizes-container').innerHTML = '';
 
   document.getElementById('preview-anh-minh-hoa').src = '';
   document.getElementById('preview-anh-minh-hoa').style.display = 'none';
@@ -315,6 +333,15 @@ function editMenu(id) {
   document.getElementById('new-gia-tien').value = item.price;
   document.getElementById('new-so-luong').value = item.so_luong !== undefined ? item.so_luong : 0;
   document.getElementById('new-anh-minh-hoa').value = '';
+  document.getElementById('new-mo-ta').value = item.description || '';
+  
+  const sizesContainer = document.getElementById('sizes-container');
+  sizesContainer.innerHTML = '';
+  if (item.sizes && item.sizes.length > 0) {
+    item.sizes.forEach(size => {
+      addSizeRow(size.ten_size, size.gia_tien);
+    });
+  }
 
   const imgUrl = item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : '/assets/' + item.image_url) : '';
 
@@ -366,8 +393,19 @@ async function submitAddMenu() {
   const loai_mon = document.getElementById('new-loai-mon').value;
   const gia_tien = document.getElementById('new-gia-tien').value;
   const so_luong = document.getElementById('new-so-luong').value;
+  const mo_ta = document.getElementById('new-mo-ta').value.trim();
   const fileInput = document.getElementById('new-anh-minh-hoa');
   const oldImage = document.getElementById('preview-anh-minh-hoa').dataset.oldImage;
+  
+  // Extract sizes
+  const sizes = [];
+  document.querySelectorAll('#sizes-container .size-row').forEach(row => {
+    const tenSize = row.querySelector('.size-name').value.trim();
+    const giaTienSize = parseFloat(row.querySelector('.size-price').value);
+    if (tenSize && !isNaN(giaTienSize)) {
+      sizes.push({ ten_size: tenSize, gia_tien: giaTienSize });
+    }
+  });
 
   if (!ten_mon || !gia_tien) {
     alert('Vui lòng nhập đầy đủ Tên và Giá!');
@@ -413,7 +451,9 @@ async function submitAddMenu() {
         loai_mon,
         gia_tien: parseFloat(gia_tien),
         so_luong: parseInt(so_luong) || 0,
-        anh_minh_hoa
+        anh_minh_hoa,
+        mo_ta,
+        sizes
       })
     });
 
