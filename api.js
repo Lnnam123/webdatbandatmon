@@ -100,6 +100,18 @@ export default function createApiRouter(broadcast) {
     }
 
     try {
+      // Validate stock
+      for (const item of cart) {
+        const menuItem = await db.dbGet('SELECT ten_mon, so_luong FROM thuc_don WHERE id = ?', [item.id]);
+        if (menuItem && menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
+          if (item.quantity > menuItem.so_luong) {
+            return res.status(400).json({ 
+              error: `Món "${menuItem.ten_mon}" chỉ còn ${menuItem.so_luong} phần. Vui lòng giảm số lượng.` 
+            });
+          }
+        }
+      }
+
       const orderId = await db.createOrder(table_id, session_token, cart, note || '');
       const activeOrder = await db.getActiveOrderForTable(table_id, session_token);
 
@@ -327,13 +339,13 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta } = req.body;
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong } = req.body;
       if (!ten_mon || !gia_tien || !loai_mon) {
         return res.status(400).json({ error: 'Thiếu thông tin bắt buộc (Tên, Giá, Loại)' });
       }
 
       const id = await db.addMenuItem({
-        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta
+        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong
       });
       res.json({ success: true, id });
     } catch (err) {
@@ -356,8 +368,8 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta } = req.body;
-      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta });
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong } = req.body;
+      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong });
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -396,6 +408,29 @@ export default function createApiRouter(broadcast) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Lỗi máy chủ (Có thể mã danh mục đã tồn tại)' });
+    }
+  });
+
+  // 4f. Sắp xếp danh mục
+  router.post('/categories/reorder', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Chưa xác thực' });
+    }
+    try {
+      const token = authHeader.split(' ')[1];
+      jwt.verify(token, SECRET_KEY);
+      
+      const { ids } = req.body;
+      if (!ids || !Array.isArray(ids)) {
+        return res.status(400).json({ error: 'Thiếu mảng ids' });
+      }
+
+      await db.updateCategoriesOrder(ids);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ khi sắp xếp' });
     }
   });
 
@@ -830,7 +865,32 @@ export default function createApiRouter(broadcast) {
       res.json({ success: true });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Lỗi server' });
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
+  // Cập nhật số lượng tồn kho nhanh (dành cho quản lý/thu ngân)
+  router.post('/menu/update-stock', async (req, res) => {
+    const { id, diff } = req.body;
+    if (!id || typeof diff !== 'number') {
+      return res.status(400).json({ error: 'Dữ liệu không hợp lệ' });
+    }
+    
+    // Auth Check
+    const token = req.headers['authorization'];
+    if (!token) return res.status(401).json({ error: 'Không có quyền truy cập' });
+    
+    try {
+      await db.adjustMenuStock(id, diff);
+      const updatedItem = await db.dbGet('SELECT so_luong FROM thuc_don WHERE id = ?', [id]);
+      
+      // Notify cashiers to refresh menu if needed (optional)
+      broadcast((info) => info.role === 'cashier', { type: 'menu_updated' });
+      
+      res.json({ success: true, so_luong: updatedItem ? updatedItem.so_luong : 0 });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi khi cập nhật số lượng' });
     }
   });
 

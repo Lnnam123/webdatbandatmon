@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quản lý</title>
   <link rel="stylesheet" href="quan-ly.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
     /* Cho phép cuộn trong tab Phòng/Bàn khi nội dung dài (bảng + QR) */
     #tab-tables {
@@ -103,7 +104,6 @@
 
     <!-- TAB: THỰC ĐƠN -->
     <div id="tab-menu" class="tab-pane">
-      <div class="kv-page-title">Món</div>
       <div class="kv-menu-layout">
 
         <!-- SIDEBAR FILTER -->
@@ -117,48 +117,7 @@
               <option value="all">Tất cả nhóm món</option>
             </select>
           </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Tỷ lệ tính thuế</div>
-            <select class="kv-select">
-              <option>Chọn thuế suất</option>
-            </select>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Tồn kho</div>
-            <select class="kv-select">
-              <option>Tất cả</option>
-            </select>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Tích điểm</div>
-            <div style="display:flex; gap:8px;">
-              <button
-                style="flex:1; padding:6px; background:var(--primary); color:#fff; border:none; border-radius:4px; font-weight:600;">Tất
-                cả</button>
-              <button
-                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Có</button>
-              <button
-                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Không</button>
-            </div>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Bán trực tiếp</div>
-            <div style="display:flex; gap:8px;">
-              <button
-                style="flex:1; padding:6px; background:var(--primary); color:#fff; border:none; border-radius:4px; font-weight:600;">Tất
-                cả</button>
-              <button
-                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Có</button>
-              <button
-                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Không</button>
-            </div>
-          </div>
-          <div class="kv-filter-group">
-            <div class="kv-filter-title">Thuộc tính</div>
-            <select class="kv-select">
-              <option>...</option>
-            </select>
-          </div>
+
         </aside>
 
         <!-- MAIN TABLE -->
@@ -175,7 +134,7 @@
             <div class="kv-toolbar-actions">
               <button class="kv-btn-default" style="color:var(--danger); border-color:var(--danger); display:none;"
                 id="btn-delete-selected" onclick="deleteSelectedMenu()">- Xoá món đã chọn</button>
-              <button class="kv-btn-default" onclick="openDeleteCategoryModal()">- Xoá nhóm món</button>
+              <button class="kv-btn-default" onclick="openManageCategoryModal()">- Quản lý nhóm món</button>
               <button class="kv-btn-default" onclick="openAddCategoryModal()">+ Thêm nhóm món mới</button>
               <button class="kv-btn-primary" onclick="openAddMenuModal()">+ Thêm món mới</button>
             </div>
@@ -190,8 +149,8 @@
                   <th>Mã món</th>
                   <th>Tên món</th>
                   <th>Nhóm món</th>
-                  <th>Tỷ lệ tính thuế</th>
-                  <th style="text-align:right;">Giá sau thuế</th>
+                  <th>Số lượng món</th>
+                  <th style="text-align:right;">Giá</th>
                   <th style="text-align:center;">Thao tác</th>
                 </tr>
               </thead>
@@ -345,9 +304,14 @@
         </div>
       </div>
 
-      <div style="margin-bottom:20px;">
+      <div style="margin-bottom:15px;">
         <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Giá bán *</label>
         <input type="number" id="new-gia-tien" class="kv-input" placeholder="0">
+      </div>
+
+      <div style="margin-bottom:15px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Số lượng món *</label>
+        <input type="number" id="new-so-luong" class="kv-input" placeholder="0">
       </div>
 
       <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -386,28 +350,20 @@
   </div>
   </div>
 
-  <!-- Modal Xóa Nhóm Món -->
-  <div id="delete-category-modal"
+  <!-- Modal Quản lý Nhóm Món -->
+  <div id="manage-category-modal"
     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
     <div
       style="background:var(--bg-card); width:400px; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-lg);">
-      <h3 style="margin-top:0; margin-bottom:20px; color:var(--danger);">Xóa nhóm món</h3>
+      <h3 style="margin-top:0; margin-bottom:20px;">Quản lý nhóm món</h3>
 
-      <div style="margin-bottom:20px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Chọn nhóm món cần xoá
-          *</label>
-        <select id="delete-loai-mon" class="kv-select">
-          <!-- Load động từ server -->
-        </select>
-        <p style="font-size:12px; color:var(--text-secondary); margin-top:8px;">Lưu ý: Các món ăn thuộc nhóm này sẽ bị
-          mất phân loại.</p>
+      <div style="margin-bottom:20px; max-height: 300px; overflow-y: auto;" id="manage-category-list">
+        <!-- Load động từ server, render từng nhóm món kèm nút Lên/Xuống/Xoá -->
       </div>
 
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <button class="kv-btn-default"
-          onclick="document.getElementById('delete-category-modal').style.display='none'">Hủy bỏ</button>
-        <button class="kv-btn-primary" style="background:var(--danger); border-color:var(--danger);"
-          onclick="submitDeleteCategory()">Xoá nhóm món</button>
+          onclick="document.getElementById('manage-category-modal').style.display='none'">Đóng</button>
       </div>
     </div>
   </div>

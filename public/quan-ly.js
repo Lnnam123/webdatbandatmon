@@ -204,7 +204,13 @@ function renderMenuTable(data) {
       <td>${code}</td>
       <td style="font-weight:500;">${item.name}</td>
       <td>${categoryName}</td>
-      <td>3%</td>
+      <td>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="kv-btn-default" style="padding:2px 8px; font-weight:bold;" onclick="adjustStockLocally(${item.id}, -1)">-</button>
+          <span>${item.so_luong !== undefined ? item.so_luong : 0}</span>
+          <button class="kv-btn-default" style="padding:2px 8px; font-weight:bold;" onclick="adjustStockLocally(${item.id}, 1)">+</button>
+        </div>
+      </td>
       <td style="text-align:right; font-weight:600;">${formatPrice(item.price)}</td>
       <td style="text-align:center;">
         <svg onclick="editMenu(${item.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
@@ -245,11 +251,48 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+function selectAllRows(checkbox) {
+  const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+  rowCheckboxes.forEach(cb => {
+    cb.checked = checkbox.checked;
+  });
+  toggleDeleteButton();
+}
+
+async function adjustStockLocally(id, diff) {
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/menu/update-stock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ id, diff })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        const item = menuData.find(i => i.id === id);
+        if (item) {
+          item.so_luong = data.so_luong;
+          filterMenuData();
+        }
+      } else {
+        alert(data.error || 'Lỗi cập nhật số lượng');
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi khi cập nhật số lượng', err);
+  }
+}
+
 function openAddMenuModal() {
   document.getElementById('edit-menu-id').value = '';
   document.getElementById('menu-modal-title').textContent = 'Thêm món mới';
   document.getElementById('new-ten-mon').value = '';
   document.getElementById('new-gia-tien').value = '';
+  document.getElementById('new-so-luong').value = '0';
   document.getElementById('new-anh-minh-hoa').value = '';
 
   document.getElementById('preview-anh-minh-hoa').src = '';
@@ -270,6 +313,7 @@ function editMenu(id) {
   document.getElementById('new-ten-mon').value = item.name;
   document.getElementById('new-loai-mon').value = item.category;
   document.getElementById('new-gia-tien').value = item.price;
+  document.getElementById('new-so-luong').value = item.so_luong !== undefined ? item.so_luong : 0;
   document.getElementById('new-anh-minh-hoa').value = '';
 
   const imgUrl = item.image_url ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : '/assets/' + item.image_url) : '';
@@ -321,6 +365,7 @@ async function submitAddMenu() {
   const ten_mon = document.getElementById('new-ten-mon').value.trim();
   const loai_mon = document.getElementById('new-loai-mon').value;
   const gia_tien = document.getElementById('new-gia-tien').value;
+  const so_luong = document.getElementById('new-so-luong').value;
   const fileInput = document.getElementById('new-anh-minh-hoa');
   const oldImage = document.getElementById('preview-anh-minh-hoa').dataset.oldImage;
 
@@ -367,6 +412,7 @@ async function submitAddMenu() {
         ten_mon,
         loai_mon,
         gia_tien: parseFloat(gia_tien),
+        so_luong: parseInt(so_luong) || 0,
         anh_minh_hoa
       })
     });
@@ -389,6 +435,140 @@ function openAddCategoryModal() {
   document.getElementById('new-cat-ma').value = '';
   document.getElementById('new-cat-ten').value = '';
   document.getElementById('add-category-modal').style.display = 'flex';
+}
+
+function openManageCategoryModal() {
+  renderManageCategoryList();
+  document.getElementById('manage-category-modal').style.display = 'flex';
+}
+
+let draggedCategoryIndex = null;
+
+function renderManageCategoryList() {
+  const container = document.getElementById('manage-category-list');
+  container.innerHTML = '';
+  categoriesData.forEach((cat, index) => {
+    const div = document.createElement('div');
+    div.style.display = 'flex';
+    div.style.justifyContent = 'space-between';
+    div.style.alignItems = 'center';
+    div.style.padding = '8px';
+    div.style.borderBottom = '1px solid var(--border-color)';
+    div.style.backgroundColor = 'var(--bg-card)';
+    div.setAttribute('draggable', 'true');
+    div.dataset.index = index;
+
+    div.addEventListener('dragstart', (e) => {
+      draggedCategoryIndex = index;
+      e.dataTransfer.effectAllowed = 'move';
+      div.style.opacity = '0.5';
+    });
+    
+    div.addEventListener('dragend', () => {
+      div.style.opacity = '1';
+      document.querySelectorAll('#manage-category-list > div').forEach(el => {
+        el.style.borderTop = '';
+        el.style.borderBottom = '1px solid var(--border-color)';
+      });
+    });
+
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const bounding = div.getBoundingClientRect();
+      const offset = bounding.y + (bounding.height / 2);
+      if (e.clientY - offset > 0) {
+        div.style.borderBottom = '2px solid var(--primary)';
+        div.style.borderTop = '';
+      } else {
+        div.style.borderTop = '2px solid var(--primary)';
+        div.style.borderBottom = '';
+      }
+    });
+    
+    div.addEventListener('dragleave', (e) => {
+      div.style.borderTop = '';
+      div.style.borderBottom = '1px solid var(--border-color)';
+    });
+
+    div.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const bounding = div.getBoundingClientRect();
+      const offset = bounding.y + (bounding.height / 2);
+      let targetIndex = index;
+      if (e.clientY - offset > 0) {
+        targetIndex = index + 1;
+      }
+      
+      if (draggedCategoryIndex === targetIndex || draggedCategoryIndex === targetIndex - 1) {
+        renderManageCategoryList();
+        return;
+      }
+      
+      const item = categoriesData.splice(draggedCategoryIndex, 1)[0];
+      if (targetIndex > draggedCategoryIndex) {
+        targetIndex--;
+      }
+      categoriesData.splice(targetIndex, 0, item);
+      
+      renderManageCategoryList();
+      await saveCategoryOrder();
+    });
+
+    div.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="cursor: grab; color: #888; font-size: 16px; user-select: none;">☰</span>
+        <div style="font-weight: 500;">${cat.ten_danh_muc}</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="kv-btn-default" style="padding:4px 8px; color:var(--danger); border-color:var(--danger); display:flex; align-items:center; justify-content:center;" onclick="deleteCategoryItem('${cat.ma_danh_muc}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+        </button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+async function saveCategoryOrder() {
+  const ids = categoriesData.map(c => c.id);
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    await fetch('/api/categories/reorder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ ids })
+    });
+    await loadCategories();
+    loadMenuData();
+  } catch(err) { console.error(err); }
+}
+
+async function deleteCategoryItem(ma_danh_muc) {
+  const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá nhóm món này? Các món ăn trong nhóm này sẽ bị mất phân loại.');
+  if (!confirmed) return;
+
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/categories/' + ma_danh_muc, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+
+    if (res.ok) {
+      showToast('Xoá nhóm món thành công!');
+      await loadCategories();
+      renderManageCategoryList();
+      loadMenuData();
+    } else {
+      alert('Lỗi khi xoá nhóm');
+    }
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 async function submitAddCategory() {

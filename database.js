@@ -84,9 +84,14 @@ export async function initDb() {
       CREATE TABLE IF NOT EXISTS danh_muc (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ma_danh_muc VARCHAR(50) UNIQUE NOT NULL,
-        ten_danh_muc VARCHAR(255) NOT NULL
+        ten_danh_muc VARCHAR(255) NOT NULL,
+        thu_tu INT DEFAULT 0
       )
     `);
+
+    try {
+      await pool.query(`ALTER TABLE danh_muc ADD COLUMN thu_tu INT DEFAULT 0`);
+    } catch (e) {}
 
     const [catRows] = await pool.query('SELECT COUNT(*) as count FROM danh_muc');
     if (catRows[0].count === 0) {
@@ -109,9 +114,14 @@ export async function initDb() {
         loai_mon VARCHAR(50) NOT NULL,
         anh_minh_hoa TEXT,
         mo_ta TEXT,
-        con_hang TINYINT NOT NULL DEFAULT 1
+        con_hang TINYINT NOT NULL DEFAULT 1,
+        so_luong INT DEFAULT 0
       )
     `);
+
+    try {
+      await pool.query(`ALTER TABLE thuc_don ADD COLUMN so_luong INT DEFAULT 0`);
+    } catch (e) {}
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS don_hang (
@@ -169,7 +179,7 @@ export async function initDb() {
 }
 
 // --- HELPER FUNCTIONS ---
-async function dbGet(sql, params = []) {
+export async function dbGet(sql, params = []) {
   if (!pool) throw new Error('Database not initialized');
   const [rows] = await pool.query(sql, params);
   return rows.length > 0 ? rows[0] : null;
@@ -295,12 +305,16 @@ export async function createOrder(tableId, sessionToken, cart, note = '') {
   }
 
   for (const item of cart) {
-    const menuItem = await dbGet('SELECT gia_tien FROM thuc_don WHERE id = ?', [item.id]);
+    const menuItem = await dbGet('SELECT gia_tien, so_luong FROM thuc_don WHERE id = ?', [item.id]);
     if (menuItem) {
       await dbRun(
         'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, so_luong, gia_ban, trang_thai) VALUES (?, ?, ?, ?, ?)',
         [orderId, item.id, item.quantity, menuItem.gia_tien, 'unconfirmed']
       );
+      // Giảm số lượng tồn kho
+      if (menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
+        await dbRun('UPDATE thuc_don SET so_luong = GREATEST(0, so_luong - ?) WHERE id = ?', [item.quantity, item.id]);
+      }
     }
   }
 
@@ -409,19 +423,20 @@ export async function confirmPayment(tableId) {
 }
 
 export async function getMenuItems() {
-  return await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available FROM thuc_don WHERE con_hang = 1');
+  return await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available, so_luong FROM thuc_don WHERE con_hang = 1');
 }
 
 export async function addMenuItem(data) {
   const result = await dbRun(
-    'INSERT INTO thuc_don (ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, con_hang) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO thuc_don (ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, con_hang, so_luong) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [
       data.ten_mon,
       data.gia_tien,
       data.loai_mon,
       data.anh_minh_hoa || '',
       data.mo_ta || '',
-      1
+      1,
+      data.so_luong || 0
     ]
   );
   return result.insertId;
@@ -436,6 +451,7 @@ export async function updateMenuItem(id, data) {
   if (data.loai_mon !== undefined) { fields.push('loai_mon = ?'); params.push(data.loai_mon); }
   if (data.anh_minh_hoa !== undefined) { fields.push('anh_minh_hoa = ?'); params.push(data.anh_minh_hoa); }
   if (data.mo_ta !== undefined) { fields.push('mo_ta = ?'); params.push(data.mo_ta); }
+  if (data.so_luong !== undefined) { fields.push('so_luong = ?'); params.push(data.so_luong); }
   
   if (fields.length === 0) return;
   params.push(id);
@@ -444,7 +460,7 @@ export async function updateMenuItem(id, data) {
 }
 
 export async function getCategories() {
-  return await dbAll('SELECT * FROM danh_muc');
+  return await dbAll('SELECT * FROM danh_muc ORDER BY thu_tu ASC, id ASC');
 }
 
 export async function addCategory(ma_danh_muc, ten_danh_muc) {
@@ -453,6 +469,12 @@ export async function addCategory(ma_danh_muc, ten_danh_muc) {
     [ma_danh_muc, ten_danh_muc]
   );
   return result.insertId;
+}
+
+export async function updateCategoriesOrder(ids) {
+  for (let i = 0; i < ids.length; i++) {
+    await dbRun('UPDATE danh_muc SET thu_tu = ? WHERE id = ?', [i, ids[i]]);
+  }
 }
 
 export async function deleteCategory(ma_danh_muc) {
@@ -525,4 +547,8 @@ export async function getOverviewStats() {
     totalTables: totalTables ? totalTables.count : 0,
     occupancyRate: occupancyRate
   };
+}
+
+export async function adjustMenuStock(id, diff) {
+  return await dbRun('UPDATE thuc_don SET so_luong = GREATEST(0, IFNULL(so_luong, 0) + ?) WHERE id = ?', [diff, id]);
 }

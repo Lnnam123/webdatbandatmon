@@ -367,6 +367,15 @@ function addToCart(id, showToastMsg = true) {
   if (!menuItem) return;
 
   const cartItem = state.cart.find(c => c.id === id);
+  const currentQty = cartItem ? cartItem.quantity : 0;
+  
+  if (menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
+    if (currentQty + 1 > menuItem.so_luong) {
+      showToast(`Món này chỉ còn ${menuItem.so_luong} phần!`, 'error');
+      return;
+    }
+  }
+
   if (cartItem) {
     cartItem.quantity += 1;
   } else {
@@ -603,7 +612,10 @@ function setupEventListeners() {
         })
       });
 
-      if (!res.ok) throw new Error('Lỗi đặt món từ server');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Lỗi đặt món từ server');
+      }
 
       const data = await res.json();
       state.activeOrder = data.activeOrder;
@@ -646,7 +658,7 @@ function setupEventListeners() {
       }
     } catch (err) {
       console.error(err);
-      showToast('Đặt món thất bại. Vui lòng thử lại!', 'error');
+      showToast(err.message || 'Đặt món thất bại. Vui lòng thử lại!', 'error');
     } finally {
       confirmOrderBtn.removeAttribute('disabled');
       confirmOrderBtn.textContent = 'Xác nhận đặt món';
