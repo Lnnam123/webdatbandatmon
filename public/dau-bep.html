@@ -27,10 +27,22 @@
     <a href="#" class="logo">
       <span>Glow</span>Bites <span>- Khu Vực Bếp</span>
     </a>
-    <div class="header-status">
+    <div class="header-status" style="display: flex; gap: 16px; align-items: center;">
       <span class="status-badge available" id="connection-status">
         <span class="status-dot ping"></span> Hệ thống hoạt động
       </span>
+      <div id="user-menu-btn" style="position: relative; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-left: 12px;">
+        <div style="width:32px; height:32px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;">
+          B
+        </div>
+        <span id="chef-username" style="font-weight:600; font-size:14px; color:var(--text-primary);">chef</span>
+
+        <div id="user-dropdown" style="display:none; position:absolute; top:44px; right:0; background:white; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); width:220px; z-index:1000; overflow:hidden; text-align: left;">
+          <div style="padding:12px 16px; border-bottom:1px solid #eee; font-size:13px; color:#666;">Họ tên: <br><b id="dropdown-fullname" style="color:#333; font-size:14px;">Đầu bếp</b></div>
+          <div class="dropdown-item" onclick="openChangePasswordModal()" style="padding:12px 16px; cursor:pointer; font-size:14px; transition: background 0.2s;">Đổi mật khẩu</div>
+          <div class="dropdown-item" onclick="logout()" style="padding:12px 16px; cursor:pointer; font-size:14px; color:#ef4444; transition: background 0.2s;">Đăng xuất</div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -68,6 +80,28 @@
     </div>
   </div>
 
+  <!-- Modal Đổi Mật Khẩu -->
+  <div id="password-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 12px; width: 400px; max-width: 90%; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <h3 style="margin-bottom: 20px; font-size: 18px; font-weight: 700; color: #333;">Đổi mật khẩu</h3>
+      
+      <div style="margin-bottom: 16px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Mật khẩu hiện tại</label>
+        <input type="password" id="old-password" placeholder="Nhập mật khẩu hiện tại" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; outline: none;">
+      </div>
+      
+      <div style="margin-bottom: 24px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Mật khẩu mới</label>
+        <input type="password" id="new-password" placeholder="Nhập mật khẩu mới" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; outline: none;">
+      </div>
+      
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button onclick="closeChangePasswordModal()" style="background: #e5e7eb; color: #374151; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Hủy bỏ</button>
+        <button onclick="submitChangePassword()" style="background: var(--primary); color: white; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Lưu mật khẩu</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let chefItems = [];
     let socket = null;
@@ -77,6 +111,87 @@
     const connectionStatus = document.getElementById('connection-status');
     const toastNotification = document.getElementById('toast-notification');
     const toastMessage = document.getElementById('toast-message');
+
+    // Auth Check
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = sessionStorage.getItem('adminToken');
+      if (!token) {
+        window.location.href = '/login.html';
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/check', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error('Invalid token');
+        const data = await res.json();
+        const usernameEl = document.getElementById('chef-username');
+        const fullnameEl = document.getElementById('dropdown-fullname');
+        if (usernameEl) usernameEl.textContent = data.username || 'chef';
+        if (fullnameEl) fullnameEl.textContent = data.fullname || 'Đầu bếp';
+        
+        // Cập nhật chữ cái đầu cho Avatar
+        const avatarLetter = (data.username || 'c').charAt(0).toUpperCase();
+        const avatarEl = document.querySelector('#user-menu-btn div');
+        if (avatarEl) avatarEl.textContent = avatarLetter;
+      } catch (err) {
+        logout();
+      }
+    });
+
+    function logout() {
+      sessionStorage.removeItem('adminToken');
+      window.location.href = '/login.html';
+    }
+
+    // --- USER DROPDOWN & PASSWORD ---
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    if (userMenuBtn) {
+      userMenuBtn.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('user-dropdown');
+        if (dropdown) {
+          dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+          e.stopPropagation();
+        }
+      });
+    }
+
+    document.addEventListener('click', () => {
+      const dropdown = document.getElementById('user-dropdown');
+      if (dropdown) dropdown.style.display = 'none';
+    });
+
+    function openChangePasswordModal() {
+      document.getElementById('password-modal').style.display = 'flex';
+      document.getElementById('old-password').value = '';
+      document.getElementById('new-password').value = '';
+    }
+    function closeChangePasswordModal() {
+      document.getElementById('password-modal').style.display = 'none';
+    }
+    async function submitChangePassword() {
+      const oldPassword = document.getElementById('old-password').value;
+      const newPassword = document.getElementById('new-password').value;
+      if (!oldPassword || !newPassword) return showToast('Vui lòng nhập đầy đủ mật khẩu', false);
+      
+      const token = sessionStorage.getItem('adminToken');
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ oldPassword, newPassword })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('Đổi mật khẩu thành công!');
+          closeChangePasswordModal();
+        } else {
+          showToast(data.error || 'Lỗi đổi mật khẩu', false);
+        }
+      } catch (err) {
+        showToast('Lỗi kết nối máy chủ', false);
+      }
+    }
 
     // Show Notification
     function showToast(message, isSuccess = true) {

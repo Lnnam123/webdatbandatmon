@@ -40,14 +40,45 @@ export async function initDb() {
     } catch (e) {}
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS khu_vuc (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ten_khu_vuc VARCHAR(255) UNIQUE NOT NULL
+      )
+    `);
+
+    // Insert default areas if none exist
+    const [areaRows] = await pool.query('SELECT COUNT(*) as count FROM khu_vuc');
+    if (areaRows[0].count === 0) {
+      await pool.query('INSERT INTO khu_vuc (ten_khu_vuc) VALUES (?), (?), (?)', ['Tầng 1', 'Tầng 2', 'Khu VIP']);
+    }
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS ban_an (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ten_ban VARCHAR(255) UNIQUE NOT NULL,
         ma_duong_dan VARCHAR(255) UNIQUE NOT NULL,
         trang_thai VARCHAR(50) NOT NULL DEFAULT 'available',
-        ma_phien_hien_tai VARCHAR(255)
+        ma_phien_hien_tai VARCHAR(255),
+        id_khu_vuc INT DEFAULT NULL,
+        FOREIGN KEY (id_khu_vuc) REFERENCES khu_vuc(id) ON DELETE SET NULL
       )
     `);
+
+    try {
+      await pool.query(`ALTER TABLE ban_an ADD COLUMN id_khu_vuc INT DEFAULT NULL`);
+    } catch (e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('Error adding id_khu_vuc to ban_an:', e.message);
+      }
+    }
+    
+    try {
+      await pool.query(`ALTER TABLE ban_an ADD CONSTRAINT fk_ban_khu_vuc FOREIGN KEY (id_khu_vuc) REFERENCES khu_vuc(id) ON DELETE SET NULL`);
+    } catch (e) {
+      if (e.code !== 'ER_DUP_KEY' && e.code !== 'ER_CANT_CREATE_TABLE') {
+        console.error('Error adding foreign key to ban_an:', e.message);
+      }
+    }
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS danh_muc (
@@ -202,12 +233,12 @@ export async function getTableById(id) {
   return await dbGet('SELECT id, ten_ban as table_number, ma_duong_dan as qr_token, trang_thai as status, ma_phien_hien_tai as current_session_token FROM ban_an WHERE id = ?', [id]);
 }
 
-export async function addTable(tableNumber, qrToken) {
-  return await dbRun('INSERT INTO ban_an (ten_ban, ma_duong_dan, trang_thai) VALUES (?, ?, ?)', [tableNumber, qrToken, 'available']);
+export async function addTable(tableNumber, qrToken, areaId = null) {
+  return await dbRun('INSERT INTO ban_an (ten_ban, ma_duong_dan, trang_thai, id_khu_vuc) VALUES (?, ?, ?, ?)', [tableNumber, qrToken, 'available', areaId]);
 }
 
-export async function updateTable(id, tableNumber, qrToken) {
-  return await dbRun('UPDATE ban_an SET ten_ban = ?, ma_duong_dan = ? WHERE id = ?', [tableNumber, qrToken, id]);
+export async function updateTable(id, tableNumber, qrToken, areaId = null) {
+  return await dbRun('UPDATE ban_an SET ten_ban = ?, ma_duong_dan = ?, id_khu_vuc = ? WHERE id = ?', [tableNumber, qrToken, areaId, id]);
 }
 
 export async function deleteTable(id) {
@@ -447,7 +478,7 @@ export async function getChefActiveItems() {
 }
 
 export async function getCashierTables() {
-  const tables = await dbAll('SELECT id, ten_ban as table_number, ma_duong_dan as qr_token, trang_thai as status, ma_phien_hien_tai as current_session_token FROM ban_an ORDER BY ten_ban ASC');
+  const tables = await dbAll('SELECT t.id, t.ten_ban as table_number, t.ma_duong_dan as qr_token, t.trang_thai as status, t.ma_phien_hien_tai as current_session_token, t.id_khu_vuc, k.ten_khu_vuc as area_name FROM ban_an t LEFT JOIN khu_vuc k ON t.id_khu_vuc = k.id ORDER BY t.ten_ban ASC');
   for (const table of tables) {
     if (table.status !== 'available' && table.current_session_token) {
       table.active_order = await getActiveOrderForTable(table.id, table.current_session_token);
@@ -456,6 +487,24 @@ export async function getCashierTables() {
     }
   }
   return tables;
+}
+
+// --- AREA FUNCTIONS ---
+export async function getAreas() {
+  return await dbAll('SELECT * FROM khu_vuc ORDER BY ten_khu_vuc ASC');
+}
+
+export async function addArea(name) {
+  const result = await dbRun('INSERT INTO khu_vuc (ten_khu_vuc) VALUES (?)', [name]);
+  return result.insertId;
+}
+
+export async function updateArea(id, name) {
+  await dbRun('UPDATE khu_vuc SET ten_khu_vuc = ? WHERE id = ?', [name, id]);
+}
+
+export async function deleteArea(id) {
+  await dbRun('DELETE FROM khu_vuc WHERE id = ?', [id]);
 }
 
 export async function getOverviewStats() {

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
+import os from 'os';
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -23,6 +24,23 @@ const SECRET_KEY = crypto.randomBytes(32).toString('hex');
 
 export default function createApiRouter(broadcast) {
   const router = express.Router();
+
+  // Lấy địa chỉ IPv4 của máy chủ
+  router.get('/server/ip', (req, res) => {
+    const interfaces = os.networkInterfaces();
+    let ipv4 = '127.0.0.1';
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          ipv4 = iface.address;
+          break;
+        }
+      }
+      if (ipv4 !== '127.0.0.1') break;
+    }
+    const port = process.env.PORT || 3000;
+    res.json({ ip: ipv4, port });
+  });
 
   // 1. Quét mã QR và Mở bàn
   router.get('/tables/verify', async (req, res) => {
@@ -640,12 +658,59 @@ export default function createApiRouter(broadcast) {
     }
   };
 
+  // --- AREA MANAGEMENT ---
+  router.get('/admin/areas', async (req, res) => {
+    try {
+      const areas = await db.getAreas();
+      res.json(areas);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.post('/admin/areas', verifyAdmin, async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ error: 'Thiếu tên khu vực' });
+      const id = await db.addArea(name);
+      res.json({ success: true, id });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.put('/admin/areas/:id', verifyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ error: 'Thiếu tên khu vực' });
+      await db.updateArea(id, name);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
+  router.delete('/admin/areas/:id', verifyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.deleteArea(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi server' });
+    }
+  });
+
   // --- TABLE MANAGEMENT ---
   router.post('/admin/tables', verifyAdmin, async (req, res) => {
     try {
-      const { table_number, qr_token } = req.body;
+      const { table_number, qr_token, area_id } = req.body;
       if (!table_number || !qr_token) return res.status(400).json({ error: 'Thiếu thông tin bàn' });
-      await db.addTable(table_number, qr_token);
+      await db.addTable(table_number, qr_token, area_id || null);
       
       broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
       
@@ -659,9 +724,9 @@ export default function createApiRouter(broadcast) {
   router.put('/admin/tables/:id', verifyAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { table_number, qr_token } = req.body;
+      const { table_number, qr_token, area_id } = req.body;
       if (!table_number || !qr_token) return res.status(400).json({ error: 'Thiếu thông tin bàn' });
-      await db.updateTable(id, table_number, qr_token);
+      await db.updateTable(id, table_number, qr_token, area_id || null);
       
       broadcast((info) => info.role === 'cashier', { type: 'table_status_changed' });
       

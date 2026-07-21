@@ -10,7 +10,6 @@ let state = {
 
 // DOM ELEMENTS
 const welcomeScreen = document.getElementById('welcome-screen');
-const simulatedTables = document.getElementById('simulated-tables');
 const orderingScreen = document.getElementById('ordering-screen');
 const headerStatusArea = document.getElementById('header-status-area');
 const tableNumberBadge = document.getElementById('table-number-badge');
@@ -71,58 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNewModalsEvents();
 });
 
-// SHOW WELCOME SCREEN WITH SIMULATION OPTIONS
-async function showWelcomeScreen() {
+// SHOW WELCOME SCREEN ONLY
+function showWelcomeScreen() {
   welcomeScreen.style.display = 'block';
   orderingScreen.style.display = 'none';
   if (headerStatusArea) headerStatusArea.style.display = 'none';
   cartBottomBar.style.display = 'none';
-
-  try {
-    const res = await fetch('/api/cashier/tables');
-    const tables = await res.json();
-    
-    simulatedTables.innerHTML = '';
-    
-    if (!tables || tables.length === 0) {
-      simulatedTables.innerHTML = '<p style="font-size: 13px; color: var(--text-secondary);">Chưa có bàn nào trong hệ thống.</p>';
-      return;
-    }
-
-    tables.forEach((t) => {
-      const btn = document.createElement('a');
-      btn.href = `?qr_token=${t.qr_token}`;
-      btn.className = 'glass-card table-card';
-      btn.style.textDecoration = 'none';
-      btn.style.padding = '16px';
-      btn.style.display = 'flex';
-      btn.style.flexDirection = 'column';
-      btn.style.alignItems = 'center';
-      btn.style.justifyContent = 'center';
-      btn.style.gap = '8px';
-      btn.style.textAlign = 'center';
-      btn.style.transition = 'all 0.2s';
-      btn.style.border = '1px solid var(--border-color)';
-      btn.style.borderRadius = 'var(--radius-lg)';
-      btn.style.background = '#fff';
-
-      let statusText = 'Trống / Sẵn sàng';
-      if (t.status === 'serving') statusText = 'Đang phục vụ';
-      if (t.status === 'pending_payment') statusText = 'Chờ thanh toán';
-
-      btn.innerHTML = `
-        <div style="margin-bottom: 8px; color: var(--primary);">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
-        </div>
-        <div style="font-size: 16px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">${t.table_number}</div>
-        <div style="font-size: 12px; color: var(--text-secondary); text-align: center;">${statusText}</div>
-      `;
-      simulatedTables.appendChild(btn);
-    });
-  } catch (err) {
-    console.error(err);
-    simulatedTables.innerHTML = '<p style="font-size: 13px; color: var(--danger);">Không thể tải danh sách bàn. Vui lòng kiểm tra kết nối!</p>';
-  }
 }
 
 // INITIATE CUSTOMER WORKSPACE

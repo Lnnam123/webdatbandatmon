@@ -10,9 +10,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const res = await fetch('/api/auth/check', {
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    if (!res.ok) {
-      throw new Error('Token expired or invalid');
-    }
+    if (!res.ok) throw new Error('Token expired or invalid');
+    const data = await res.json();
+    const usernameEl = document.getElementById('manager-username');
+    const fullnameEl = document.getElementById('dropdown-fullname');
+    if (usernameEl) usernameEl.textContent = data.username || 'admin';
+    if (fullnameEl) fullnameEl.textContent = data.fullname || 'Quản lý';
+    
+    // Cập nhật chữ cái đầu cho Avatar
+    const avatarLetter = (data.username || 'a').charAt(0).toUpperCase();
+    const avatarEl = document.querySelector('#user-menu-btn div');
+    if (avatarEl) avatarEl.textContent = avatarLetter;
   } catch (err) {
     // Nếu lỗi hoặc server báo 401 (do khởi động lại đổi SECRET_KEY)
     logout();
@@ -20,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   setupTabs();
+  await loadAreasData();
   await loadCategories();
   loadMenuData();
   loadTablesData();
@@ -525,39 +534,364 @@ document.getElementById('menu-search-input').addEventListener('input', (e) => {
 });
 
 let currentTablesData = [];
+let areasData = [];
+let serverBaseUrl = '';
+let currentQrToken = '';
+let currentQrTableName = '';
+
+async function loadAreasData() {
+  try {
+    const res = await fetch('/api/admin/areas');
+    areasData = await res.json();
+    renderAreaOptions();
+    renderAreaTable();
+  } catch (err) {
+    console.error('Error loading areas', err);
+  }
+}
+
+function renderAreaOptions() {
+  const filterSelect = document.getElementById('filter-area');
+  const tableSelect = document.getElementById('table-area');
+  
+  if (filterSelect) {
+    const val = filterSelect.value;
+    filterSelect.innerHTML = '<option value="all">Tất cả khu vực</option>';
+    areasData.forEach(a => {
+      filterSelect.innerHTML += `<option value="${a.id}">${a.ten_khu_vuc}</option>`;
+    });
+    filterSelect.value = val || 'all';
+  }
+  
+  if (tableSelect) {
+    const val = tableSelect.value;
+    tableSelect.innerHTML = '<option value="">-- Không thuộc khu vực nào --</option>';
+    areasData.forEach(a => {
+      tableSelect.innerHTML += `<option value="${a.id}">${a.ten_khu_vuc}</option>`;
+    });
+    tableSelect.value = val || '';
+  }
+}
 
 async function loadTablesData() {
-  const tbody = document.getElementById('tables-table-body');
   try {
     const res = await fetch('/api/cashier/tables');
     const data = await res.json();
     currentTablesData = data;
-
-    tbody.innerHTML = '';
-    data.forEach(table => {
-      const tr = document.createElement('tr');
-
-      let statusText = 'Trống';
-      if (table.status === 'serving') statusText = '<span style="color:#0052cc;">Đang phục vụ</span>';
-      if (table.status === 'pending_payment') statusText = '<span style="color:#ff4d4f;">Chờ thanh toán</span>';
-
-      tr.innerHTML = `
-        <td>Bàn ${table.id}</td>
-        <td>${table.table_number}</td>
-        <td>${statusText}</td>
-        <td>${table.activeOrder ? formatPrice(table.activeOrder.total_amount) : '-'}</td>
-        <td style="text-align:center;">
-          <svg onclick="openTableModal(${table.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-          <svg onclick="deleteTable(${table.id})" style="cursor:pointer; color:var(--danger);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
+    renderTables();
   } catch (err) {
     console.error(err);
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:red;">Lỗi tải dữ liệu</td></tr>`;
+    document.getElementById('tables-table-body').innerHTML = `<tr><td colspan="5" style="text-align:center;color:red;">Lỗi tải dữ liệu</td></tr>`;
   }
 }
+
+function renderTables() {
+  const tbody = document.getElementById('tables-table-body');
+  const filterId = document.getElementById('filter-area') ? document.getElementById('filter-area').value : 'all';
+  
+  let filtered = currentTablesData;
+  if (filterId !== 'all') {
+    filtered = currentTablesData.filter(t => t.id_khu_vuc == filterId);
+  }
+
+  tbody.innerHTML = '';
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">Không có bàn nào trong khu vực này</td></tr>`;
+  }
+
+  filtered.forEach(table => {
+    const tr = document.createElement('tr');
+
+    let statusText = 'Trống';
+    if (table.status === 'serving') statusText = '<span style="color:#0052cc; font-weight:600;">Đang phục vụ</span>';
+    if (table.status === 'pending_payment') statusText = '<span style="color:#ff4d4f; font-weight:600;">Chờ thanh toán</span>';
+
+    // Xử lý hiển thị "Đơn hiện tại"
+    let currentOrderHtml = '-';
+    if (table.active_order) {
+      currentOrderHtml = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-weight:600;">${formatPrice(table.active_order.total_amount)}</span>
+        </div>
+      `;
+    }
+
+    tr.innerHTML = `
+      <td style="font-weight:700;">${table.table_number}</td>
+      <td>${table.area_name || '<span style="color:#aaa;">- Không phân khu -</span>'}</td>
+      <td>${statusText}</td>
+      <td>${currentOrderHtml}</td>
+      <td style="text-align:center;">
+        <svg onclick="openTableModal(${table.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <svg onclick="deleteTable(${table.id})" style="cursor:pointer; color:var(--danger);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  renderQRSection(filtered);
+}
+
+// --- AREA MANAGEMENT ---
+function openAreaModal() {
+  document.getElementById('area-modal').style.display = 'flex';
+  renderAreaTable();
+}
+
+function renderAreaTable() {
+  const tbody = document.getElementById('areas-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (areasData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:10px;">Chưa có khu vực nào</td></tr>`;
+    return;
+  }
+  areasData.forEach(area => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${area.ten_khu_vuc}</td>
+        <td style="text-align:right;">
+          <svg onclick="deleteArea(${area.id})" style="cursor:pointer; color:var(--danger);" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+async function submitAddArea() {
+  const nameInput = document.getElementById('new-area-name');
+  const name = nameInput.value.trim();
+  if (!name) return;
+
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/admin/areas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ name })
+    });
+    if (res.ok) {
+      nameInput.value = '';
+      showToast('Thêm khu vực thành công');
+      await loadAreasData();
+      await loadTablesData();
+    } else {
+      alert('Lỗi thêm khu vực');
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function deleteArea(id) {
+  const confirmed = await showConfirmModal('Bạn có chắc chắn muốn xoá khu vực này? (Các bàn sẽ mất liên kết khu vực)');
+  if (!confirmed) return;
+
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/admin/areas/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (res.ok) {
+      showToast('Xoá khu vực thành công');
+      await loadAreasData();
+      await loadTablesData();
+    } else {
+      alert('Lỗi xoá khu vực');
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// --- QR CODE SECTION ---
+async function renderQRSection(tables) {
+  // Inject QR container into tab-tables if not yet present
+  let tabTables = document.getElementById('tab-tables');
+  if (!tabTables) return;
+
+  // Create or reset QR section
+  let qrSection = document.getElementById('qr-section-wrapper');
+  if (!qrSection) {
+    qrSection = document.createElement('div');
+    qrSection.id = 'qr-section-wrapper';
+    qrSection.className = 'kv-content';
+    qrSection.style.cssText = 'margin-top:24px; padding:24px;';
+    tabTables.appendChild(qrSection);
+  }
+
+  // Fetch server IP
+  try {
+    const ipRes = await fetch('/api/server/ip');
+    const ipData = await ipRes.json();
+    serverBaseUrl = `http://${ipData.ip}:${ipData.port}`;
+    const ipDisplay = document.getElementById('server-ip-display');
+    if (ipDisplay) ipDisplay.textContent = `${ipData.ip}:${ipData.port}`;
+  } catch (e) {
+    serverBaseUrl = window.location.origin;
+  }
+
+  qrSection.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+      <div>
+        <div style="font-size:20px; font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Mã QR Đặt Món
+        </div>
+        <div style="font-size:14px; color:var(--text-secondary);">Khách hàng quét mã QR để vào thực đơn và đặt món trực tiếp từ điện thoại</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:50px; padding:8px 16px; font-size:13px; display:flex; align-items:center; gap:6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-secondary)"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          <span id="server-ip-display" style="font-weight:700; color:var(--primary);">${serverBaseUrl.replace('http://', '')}</span>
+        </div>
+        <button class="kv-btn-primary" onclick="printAllQR()" style="display:flex; align-items:center; gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          In tất cả
+        </button>
+      </div>
+    </div>
+    <div id="qr-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:24px;"></div>
+  `;
+
+  const grid = document.getElementById('qr-grid');
+  for (const table of tables) {
+    const url = `${serverBaseUrl}/dat-mon.html?qr_token=${table.qr_token}`;
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--bg-card); border:1px solid var(--border-color); border-radius:16px; padding:24px 16px; text-align:center; box-shadow:var(--shadow-sm); transition:all 0.3s ease; display:flex; flex-direction:column; align-items:center;';
+    card.onmouseover = () => { card.style.transform = 'translateY(-6px)'; card.style.boxShadow = 'var(--shadow-lg)'; card.style.borderColor = 'var(--primary)'; };
+    card.onmouseout = () => { card.style.transform = 'none'; card.style.boxShadow = 'var(--shadow-sm)'; card.style.borderColor = 'var(--border-color)'; };
+    
+    const qrContainer = document.createElement('div');
+    qrContainer.id = `qr-canvas-${table.id}`;
+    qrContainer.style.cssText = 'display:flex; justify-content:center; align-items:center; background:#fff; padding:12px; border-radius:12px; border:1px solid #f1f5f9; margin-bottom:16px; box-shadow:0 2px 4px rgba(0,0,0,0.02);';
+    
+    const nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-weight:800; font-size:16px; margin-bottom:6px; color:var(--text-primary);';
+    nameEl.textContent = table.table_number;
+    
+    const urlEl = document.createElement('div');
+    urlEl.style.cssText = 'font-size:11px; color:var(--text-secondary); word-break:break-all; margin-bottom:16px; background:var(--bg-main); padding:6px 10px; border-radius:8px; width:100%; border:1px dashed var(--border-color);';
+    urlEl.textContent = url;
+    
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'kv-btn-outline';
+    viewBtn.style.cssText = 'width:100%; font-size:13px; padding:8px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:8px;';
+    viewBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg> Phóng to';
+    viewBtn.onclick = () => openQrModal(table.qr_token, table.table_number, url);
+    
+    card.appendChild(qrContainer);
+    card.appendChild(nameEl);
+    card.appendChild(urlEl);
+    card.appendChild(viewBtn);
+    grid.appendChild(card);
+    
+    // Generate QR
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(qrContainer, {
+        text: url,
+        width: 160,
+        height: 160,
+        colorDark : "#111111",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.L
+      });
+    }
+  }
+}
+
+function openQrModal(qrToken, tableName, url) {
+  currentQrToken = qrToken;
+  currentQrTableName = tableName;
+  const modal = document.getElementById('qr-preview-modal');
+  document.getElementById('qr-modal-title').textContent = tableName;
+  document.getElementById('qr-modal-url').textContent = url;
+  
+  const container = document.getElementById('qr-modal-canvas');
+  container.innerHTML = '';
+  
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(container, {
+      text: url,
+      width: 260,
+      height: 260,
+      colorDark : "#111111",
+      colorLight : "#ffffff",
+      correctLevel : QRCode.CorrectLevel.L
+    });
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function closeQrModal() {
+  document.getElementById('qr-preview-modal').style.display = 'none';
+}
+
+function downloadQR() {
+  const container = document.getElementById('qr-modal-canvas');
+  if (!container) return;
+  const img = container.querySelector('img');
+  const canvas = container.querySelector('canvas');
+  let dataUrl = '';
+  
+  if (img && img.src && img.src.startsWith('data:')) {
+    dataUrl = img.src;
+  } else if (canvas) {
+    dataUrl = canvas.toDataURL('image/png');
+  }
+  
+  if (!dataUrl) return;
+  const link = document.createElement('a');
+  link.download = `QR_${currentQrTableName.replace(/\s+/g, '_')}.png`;
+  link.href = dataUrl;
+  link.click();
+}
+
+function printAllQR() {
+  const grid = document.getElementById('qr-grid');
+  if (!grid) return;
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>In mã QR</title><style>
+      body { font-family: Arial, sans-serif; margin: 0; }
+      .grid { display: flex; flex-wrap: wrap; gap: 0; }
+      .card { width: 200px; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 8px; text-align: center; page-break-inside: avoid; }
+      .name { font-weight: 700; font-size: 14px; margin-top: 10px; }
+      .url { font-size: 9px; color: #aaa; word-break: break-all; margin-top: 4px; }
+      @media print { @page { size: A4; margin: 10mm; } }
+    </style></head><body><div class="grid">
+  `);
+  
+  const cards = grid.children;
+  Array.from(cards).forEach((card, idx) => {
+    const table = currentTablesData[idx];
+    if (!table) return;
+    const url = `${serverBaseUrl}/dat-mon.html?qr_token=${table.qr_token}`;
+    
+    const img = card.querySelector('img');
+    const canvas = card.querySelector('canvas');
+    let dataUrl = '';
+    if (img && img.src && img.src.startsWith('data:')) dataUrl = img.src;
+    else if (canvas) dataUrl = canvas.toDataURL();
+    
+    if (dataUrl) {
+      win.document.write(`
+        <div class="card">
+          <img src="${dataUrl}" width="160" height="160">
+          <div class="name">${table.table_number}</div>
+          <div class="url">${url}</div>
+        </div>
+      `);
+    }
+  });
+  
+  win.document.write('</div></body></html>');
+  win.document.close();
+  win.onload = () => { win.print(); };
+}
+
 
 // --- TABLE MANAGEMENT ---
 function openTableModal(id = null) {
@@ -565,6 +899,7 @@ function openTableModal(id = null) {
   const title = document.getElementById('table-modal-title');
   const nameInput = document.getElementById('table-name');
   const qrInput = document.getElementById('table-qr');
+  const areaSelect = document.getElementById('table-area');
   
   if (id) {
     const table = currentTablesData.find(t => t.id === id);
@@ -572,10 +907,12 @@ function openTableModal(id = null) {
     title.textContent = 'Sửa bàn';
     nameInput.value = table.table_number;
     qrInput.value = table.qr_token;
+    areaSelect.value = table.id_khu_vuc || '';
   } else {
     title.textContent = 'Thêm bàn mới';
     nameInput.value = '';
     qrInput.value = '';
+    areaSelect.value = '';
   }
   
   document.getElementById('table-modal').style.display = 'flex';
@@ -585,6 +922,7 @@ async function submitTable() {
   const id = document.getElementById('edit-table-id').value;
   const table_number = document.getElementById('table-name').value.trim();
   const qr_token = document.getElementById('table-qr').value.trim();
+  const area_id = document.getElementById('table-area').value;
   
   if (!table_number || !qr_token) return alert('Vui lòng nhập tên bàn và mã QR');
   
@@ -599,7 +937,7 @@ async function submitTable() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + token
       },
-      body: JSON.stringify({ table_number, qr_token })
+      body: JSON.stringify({ table_number, qr_token, area_id: area_id ? parseInt(area_id) : null })
     });
     
     if (res.ok) {
@@ -905,6 +1243,59 @@ async function deleteEmployee(id) {
 }
 
 // --- RESTAURANT SETTINGS ---
+async function updateRestaurantInfo() {
+  // Bỏ hàm cũ không dùng
+}
+
+// --- USER DROPDOWN & PASSWORD ---
+const userMenuBtn = document.getElementById('user-menu-btn');
+if (userMenuBtn) {
+  userMenuBtn.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('user-dropdown');
+    if (dropdown) {
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+      e.stopPropagation();
+    }
+  });
+}
+
+document.addEventListener('click', () => {
+  const dropdown = document.getElementById('user-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+});
+
+function openChangePasswordModal() {
+  document.getElementById('password-modal').style.display = 'flex';
+  document.getElementById('old-password').value = '';
+  document.getElementById('new-password').value = '';
+}
+function closeChangePasswordModal() {
+  document.getElementById('password-modal').style.display = 'none';
+}
+async function submitChangePassword() {
+  const oldPassword = document.getElementById('old-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  if (!oldPassword || !newPassword) return showToast('Vui lòng nhập đầy đủ mật khẩu');
+  
+  const token = sessionStorage.getItem('adminToken');
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ oldPassword, newPassword })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast('Đổi mật khẩu thành công!');
+      closeChangePasswordModal();
+    } else {
+      showToast(data.error || 'Lỗi đổi mật khẩu', false);
+    }
+  } catch (err) {
+    showToast('Lỗi kết nối máy chủ', false);
+  }
+}
+
 async function loadRestaurantSettings() {
   try {
     const res = await fetch('/api/restaurant/info');

@@ -7,6 +7,14 @@
   <title>Thu ngân</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="thu-ngan.css">
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      alert("ERROR: " + message + " at " + lineno + ":" + colno);
+    };
+    window.addEventListener('unhandledrejection', function(event) {
+      alert("UNHANDLED PROMISE REJECTION: " + event.reason);
+    });
+  </script>
 </head>
 
 <body>
@@ -15,21 +23,12 @@
   <div class="pos-layout">
 
     <!-- CỘT TRÁI: DANH SÁCH BÀN -->
-    <div class="pos-left">
+    <div class="pos-left" id="pos-left-panel">
       <!-- Navbar trên cùng của Thu Ngân -->
       <div class="pos-topbar">
         <div class="pos-tabs">
-          <div class="pos-tab active"><i class="icon-table"></i> Phòng bàn</div>
-          <div class="pos-tab"><i class="icon-menu"></i> Thực đơn</div>
-          <div class="pos-tab"><i class="icon-order"></i> Đặt gọi món</div>
-          <div class="pos-tab"><i class="icon-delivery"></i> Giao đi</div>
-        </div>
-        <div class="pos-search-wrapper">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" class="pos-search" placeholder="Tìm món (F3)">
+          <div class="pos-tab active" data-target="view-tables"><i class="icon-table"></i> Phòng bàn</div>
+          <div class="pos-tab" data-target="view-menu"><i class="icon-menu"></i> Thực đơn</div>
         </div>
         <div class="pos-top-actions">
           <button class="pos-icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -55,15 +54,8 @@
       </div>
 
       <!-- Khu vực, Bộ lọc -->
-      <div class="pos-filter-bar">
-        <div class="pos-area-tabs">
-          <div class="area-tab active">Tất cả</div>
-          <div class="area-tab">Tầng 1</div>
-          <div class="area-tab">Tầng 2</div>
-          <div class="area-tab">Tầng 3</div>
-          <div class="area-tab">VIP</div>
-        </div>
-
+      <div id="view-tables" style="display: flex; flex-direction: column; flex: 1;">
+      <div class="pos-filter-bar" style="display: flex; justify-content: space-between; align-items: center;">
         <div class="pos-filter-status">
           <label class="radio-label"><input type="radio" name="table_status" value="all" checked> <span
               class="radio-custom"></span> Tất cả (<span id="count-all">0</span>)</label>
@@ -71,6 +63,14 @@
               class="radio-custom"></span> Sử dụng (<span id="count-using">0</span>)</label>
           <label class="radio-label"><input type="radio" name="table_status" value="available"> <span
               class="radio-custom"></span> Còn trống (<span id="count-empty">0</span>)</label>
+        </div>
+
+        <div class="pos-area-tabs">
+          <div class="area-tab active">Tất cả</div>
+          <div class="area-tab">Tầng 1</div>
+          <div class="area-tab">Tầng 2</div>
+          <div class="area-tab">Tầng 3</div>
+          <div class="area-tab">VIP</div>
         </div>
 
         <div class="pos-notification-bell" id="btn-show-unconfirmed" style="display: none;">
@@ -95,24 +95,119 @@
           <button>&gt;</button>
         </div>
       </div>
+    
+      </div><!-- end view-tables -->
+      <!-- TAB: THỰC ĐƠN -->
+    <div id="view-menu" style="display: none; height: calc(100vh - 60px);" class="tab-pane">
+      <div class="kv-menu-layout">
+
+        <!-- SIDEBAR FILTER -->
+        <aside class="kv-sidebar">
+
+          <div class="kv-filter-group">
+            <div class="kv-filter-title" style="display:flex; justify-content:space-between;">Nhóm món <a href="#"
+                style="color:var(--primary); font-size:12px; font-weight:600; text-decoration:none;"
+                onclick="openAddCategoryModal()">Tạo mới</a></div>
+            <select class="kv-select" id="filter-category">
+              <option value="all">Tất cả nhóm món</option>
+            </select>
+          </div>
+          <div class="kv-filter-group">
+            <div class="kv-filter-title">Tỷ lệ tính thuế</div>
+            <select class="kv-select">
+              <option>Chọn thuế suất</option>
+            </select>
+          </div>
+          <div class="kv-filter-group">
+            <div class="kv-filter-title">Tồn kho</div>
+            <select class="kv-select">
+              <option>Tất cả</option>
+            </select>
+          </div>
+          <div class="kv-filter-group">
+            <div class="kv-filter-title">Tích điểm</div>
+            <div style="display:flex; gap:8px;">
+              <button
+                style="flex:1; padding:6px; background:var(--primary); color:#fff; border:none; border-radius:4px; font-weight:600;">Tất
+                cả</button>
+              <button
+                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Có</button>
+              <button
+                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Không</button>
+            </div>
+          </div>
+          <div class="kv-filter-group">
+            <div class="kv-filter-title">Bán trực tiếp</div>
+            <div style="display:flex; gap:8px;">
+              <button
+                style="flex:1; padding:6px; background:var(--primary); color:#fff; border:none; border-radius:4px; font-weight:600;">Tất
+                cả</button>
+              <button
+                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Có</button>
+              <button
+                style="flex:1; padding:6px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:4px; font-weight:500;">Không</button>
+            </div>
+          </div>
+          <div class="kv-filter-group">
+            <div class="kv-filter-title">Thuộc tính</div>
+            <select class="kv-select">
+              <option>...</option>
+            </select>
+          </div>
+        </aside>
+
+        <!-- MAIN TABLE -->
+        <div class="kv-content">
+          <div class="kv-toolbar">
+            <div class="kv-search-bar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="menu-search-input" placeholder="Theo mã hoặc tên món">
+            </div>
+
+            <div class="kv-toolbar-actions">
+              <button class="kv-btn-default" style="color:var(--danger); border-color:var(--danger); display:none;"
+                id="btn-delete-selected" onclick="deleteSelectedMenu()">- Xoá món đã chọn</button>
+              <button class="kv-btn-default" onclick="openDeleteCategoryModal()">- Xoá nhóm món</button>
+              <button class="kv-btn-default" onclick="openAddCategoryModal()">+ Thêm nhóm món mới</button>
+              <button class="kv-btn-primary" onclick="openAddMenuModal()">+ Thêm món mới</button>
+            </div>
+          </div>
+
+          <div class="kv-table-container">
+            <table class="kv-table">
+              <thead>
+                <tr>
+                  <th style="width:60px;">Hình ảnh</th>
+                  <th>Mã món</th>
+                  <th>Tên món</th>
+                  <th>Nhóm món</th>
+                  <th>Tỷ lệ tính thuế</th>
+                  <th style="text-align:right;">Giá sau thuế</th>
+                  <th style="text-align:center;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="menu-table-body">
+                <tr>
+                  <td colspan="8" style="text-align:center; padding:20px;">Đang tải dữ liệu...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
     </div>
 
     <!-- CỘT PHẢI: CHI TIẾT ĐƠN -->
-    <div class="pos-right">
+    <div class="pos-right" id="pos-right-panel">
       <div class="pos-right-header">
         <div class="pos-table-badge" id="current-table-name">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          </svg>
           Chưa chọn bàn
-        </div>
-        <div class="pos-customer-search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" placeholder="Tìm khách hàng (F4)">
-          <button class="pos-add-btn">+</button>
         </div>
       </div>
 
@@ -317,6 +412,129 @@
           <button class="unconf-btn-cancel" onclick="closeChangePasswordModal()">Hủy</button>
           <button class="unconf-btn-confirm" onclick="submitChangePassword()">Xác nhận</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm/Sửa Món Mới -->
+  <div id="add-menu-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+    <div
+      style="background:var(--bg-card); width:400px; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-lg);">
+      <h3 id="menu-modal-title" style="margin-top:0; margin-bottom:20px;">Thêm món mới</h3>
+      <input type="hidden" id="edit-menu-id">
+
+      <div style="margin-bottom:15px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Tên món *</label>
+        <input type="text" id="new-ten-mon" class="kv-input" placeholder="Nhập tên món ăn">
+      </div>
+
+      <div style="margin-bottom:15px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Phân loại món *</label>
+        <select id="new-loai-mon" class="kv-select">
+          <!-- Load động từ server -->
+        </select>
+      </div>
+
+      <div style="margin-bottom:15px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Ảnh món ăn</label>
+        <div class="upload-drop-zone" id="upload-drop-zone">
+          <img id="preview-anh-minh-hoa" src="" style="display: none;" class="preview-image" alt="Preview">
+          <svg class="upload-icon" id="upload-icon-svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+            <path d="M12 12v9"></path>
+            <path d="m16 16-4-4-4 4"></path>
+          </svg>
+          <div class="upload-title" id="upload-title-text">Kéo thả ảnh vào đây hoặc chọn tệp</div>
+          <div class="upload-subtitle" id="upload-subtitle-text">Chấp nhận .jpg, .png. Kích thước &lt; 2MB</div>
+          <button type="button" class="btn-browse" id="btn-browse-file">Chọn tệp</button>
+
+          <input type="file" id="new-anh-minh-hoa" accept="image/*" onchange="previewImage(event)">
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Giá bán *</label>
+        <input type="number" id="new-gia-tien" class="kv-input" placeholder="0">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="kv-btn-default" onclick="document.getElementById('add-menu-modal').style.display='none'">Hủy
+          bỏ</button>
+        <button class="kv-btn-primary" onclick="submitAddMenu()">Lưu lại</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm Nhóm Mới -->
+  <div id="add-category-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+    <div
+      style="background:var(--bg-card); width:400px; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-lg);">
+      <h3 style="margin-top:0; margin-bottom:20px;">Thêm nhóm món mới</h3>
+
+      <div style="margin-bottom:15px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Mã nhóm (Ví dụ: seafood)
+          *</label>
+        <input type="text" id="new-cat-ma" class="kv-input" placeholder="Mã tiếng Anh không dấu">
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Tên nhóm (Ví dụ: Hải sản)
+          *</label>
+        <input type="text" id="new-cat-ten" class="kv-input" placeholder="Tên nhóm hiển thị">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="kv-btn-default" onclick="document.getElementById('add-category-modal').style.display='none'">Hủy
+          bỏ</button>
+        <button class="kv-btn-primary" onclick="submitAddCategory()">Lưu lại</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- Modal Xóa Nhóm Món -->
+  <div id="delete-category-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+    <div
+      style="background:var(--bg-card); width:400px; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-lg);">
+      <h3 style="margin-top:0; margin-bottom:20px; color:var(--danger);">Xóa nhóm món</h3>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Chọn nhóm món cần xoá
+          *</label>
+        <select id="delete-loai-mon" class="kv-select">
+          <!-- Load động từ server -->
+        </select>
+        <p style="font-size:12px; color:var(--text-secondary); margin-top:8px;">Lưu ý: Các món ăn thuộc nhóm này sẽ bị
+          mất phân loại.</p>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="kv-btn-default"
+          onclick="document.getElementById('delete-category-modal').style.display='none'">Hủy bỏ</button>
+        <button class="kv-btn-primary" style="background:var(--danger); border-color:var(--danger);"
+          onclick="submitDeleteCategory()">Xoá nhóm món</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  
+  <!-- Modal Xác Nhận (Confirm) -->
+  <div id="confirm-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
+    <div
+      style="background:var(--bg-card); width:350px; border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-lg); text-align:center;">
+      <h3 style="margin-top:0; margin-bottom:15px; font-size:18px;">Xác nhận</h3>
+      <p id="confirm-message" style="margin-bottom:20px; color:var(--text-secondary); line-height:1.5;">Bạn có chắc chắn
+        muốn thực hiện hành động này?</p>
+      <div style="display:flex; justify-content:center; gap:10px;">
+        <button class="kv-btn-default" style="min-width:100px;" onclick="hideConfirmModal()">Hủy</button>
+        <button id="btn-confirm-yes" class="kv-btn-primary"
+          style="min-width:100px; background:var(--danger); border-color:var(--danger);">Đồng ý</button>
       </div>
     </div>
   </div>
