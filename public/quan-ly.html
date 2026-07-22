@@ -180,6 +180,7 @@
                   <th>Tên món</th>
                   <th>Nhóm món</th>
                   <th>Số lượng món</th>
+                  <th>Đã bán</th>
                   <th style="text-align:right;">Giá</th>
                   <th style="text-align:center;">Thao tác</th>
                 </tr>
@@ -371,9 +372,15 @@
               style="width:100%; font-family:inherit;"></textarea>
           </div>
 
-          <div>
-            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Số lượng kho *</label>
-            <input type="number" id="new-so-luong" class="kv-input" placeholder="0">
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Số lượng kho *</label>
+              <input type="number" id="new-so-luong" class="kv-input" placeholder="0">
+            </div>
+            <div style="flex: 1;">
+              <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px;">Đã bán</label>
+              <input type="number" id="new-da-ban" class="kv-input" placeholder="0">
+            </div>
           </div>
         </div>
       </div>

@@ -15,6 +15,18 @@ body {
   overflow: hidden;
 }
 
+.btn-pos-back {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #0b3b75;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  align-items: center;
+  gap: 4px;
+}
+
 /* ================= LEFT COLUMN ================= */
 .pos-left {
   flex: 1;
@@ -138,6 +150,7 @@ body {
   gap: 6px;
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .radio-custom {
   width: 14px;
@@ -194,7 +207,7 @@ input[type="radio"]:checked + .radio-custom::after {
 .table-box {
   background: white;
   border-radius: 8px;
-  height: 90px;
+  min-height: 90px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -205,6 +218,65 @@ input[type="radio"]:checked + .radio-custom::after {
   border: 1px solid #e5e7eb;
   transition: all 0.2s ease;
   color: #0b3b75;
+}
+
+@keyframes blinkBorder {
+  0% { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+  50% { border-color: transparent; box-shadow: none; }
+  100% { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+}
+
+@keyframes blinkBg {
+  0% { background-color: #ef4444; color: white; }
+  50% { background-color: #fee2e2; color: #ef4444; }
+  100% { background-color: #ef4444; color: white; }
+}
+
+@keyframes blinkGreenBorder {
+  0% { border-color: #10b981; box-shadow: 0 0 5px rgba(16, 185, 129, 0.5); }
+  50% { border-color: #ecfdf5; box-shadow: 0 0 15px rgba(16, 185, 129, 0.8); }
+  100% { border-color: #10b981; box-shadow: 0 0 5px rgba(16, 185, 129, 0.5); }
+}
+
+@keyframes blinkGreenBg {
+  0% { background-color: #ecfdf5; color: #047857; border-color: #10b981; }
+  50% { background-color: #10b981; color: white; border-color: #059669; }
+  100% { background-color: #ecfdf5; color: #047857; border-color: #10b981; }
+}
+
+.blink-border {
+  animation: blinkBorder 1s infinite;
+  border: 2px solid #ef4444 !important;
+}
+
+.blink-bg {
+  animation: blinkBg 1s infinite;
+}
+
+.blink-border-green {
+  animation: blinkGreenBorder 1s infinite;
+  border: 2px solid #10b981 !important;
+}
+
+.blink-bg-green {
+  animation: blinkGreenBg 1s infinite;
+}
+
+.call-staff-note {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 4px;
+  padding: 4px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 90%;
+}
+
+.call-staff-note.blink-bg {
+  animation: blinkBg 1s infinite;
 }
 
 .table-box.active {
@@ -430,6 +502,7 @@ input[type="radio"]:checked + .radio-custom::after {
   display: flex;
   flex-direction: column;
   max-height: 80vh;
+  overflow: hidden;
 }
 .pos-modal-header {
   display: flex;
@@ -974,17 +1047,42 @@ input[type="radio"]:checked + .radio-custom::after {
     height: auto;
     flex-wrap: wrap;
     padding: 8px;
+    gap: 12px;
   }
   .pos-tabs {
     width: 100%;
     justify-content: center;
     border-bottom: 1px solid rgba(255,255,255,0.1);
-    margin-bottom: 8px;
+    margin-bottom: 0px;
+    margin-top: 0px;
+  }
+  .pos-tab {
+    padding: 8px 16px;
+    margin-top: 0;
   }
   .pos-top-actions {
     width: 100%;
-    justify-content: center;
-    gap: 16px;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  
+  .pos-filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+  }
+  .pos-filter-status {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pos-area-tabs {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
   
   /* Header */
@@ -1078,5 +1176,20 @@ input[type="radio"]:checked + .radio-custom::after {
   .modal-container {
     padding: 20px;
     width: 95%;
+  }
+
+  /* Mobile layout cho POS */
+  .pos-right {
+    display: none !important;
+  }
+  .pos-layout.show-right-pane .pos-left {
+    display: none !important;
+  }
+  .pos-layout.show-right-pane .pos-right {
+    display: flex !important;
+    width: 100% !important;
+  }
+  .btn-pos-back {
+    display: inline-flex !important;
   }
 }

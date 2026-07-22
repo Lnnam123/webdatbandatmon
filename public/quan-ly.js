@@ -211,6 +211,7 @@ function renderMenuTable(data) {
           <button class="kv-btn-default" style="padding:2px 8px; font-weight:bold;" onclick="adjustStockLocally(${item.id}, 1)">+</button>
         </div>
       </td>
+      <td>${item.da_ban !== undefined ? item.da_ban : 0}</td>
       <td style="text-align:right; font-weight:600;">${formatPrice(item.price)}</td>
       <td style="text-align:center;">
         <svg onclick="editMenu(${item.id})" style="cursor:pointer; color:var(--text-secondary); margin-right:8px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
@@ -309,6 +310,7 @@ function openAddMenuModal() {
   document.getElementById('new-ten-mon').value = '';
   document.getElementById('new-gia-tien').value = '';
   document.getElementById('new-so-luong').value = '0';
+  document.getElementById('new-da-ban').value = '0';
   document.getElementById('new-anh-minh-hoa').value = '';
   document.getElementById('new-mo-ta').value = '';
   document.getElementById('sizes-container').innerHTML = '';
@@ -332,6 +334,7 @@ function editMenu(id) {
   document.getElementById('new-loai-mon').value = item.category;
   document.getElementById('new-gia-tien').value = item.price;
   document.getElementById('new-so-luong').value = item.so_luong !== undefined ? item.so_luong : 0;
+  document.getElementById('new-da-ban').value = item.da_ban !== undefined ? item.da_ban : 0;
   document.getElementById('new-anh-minh-hoa').value = '';
   document.getElementById('new-mo-ta').value = item.description || '';
   
@@ -393,6 +396,7 @@ async function submitAddMenu() {
   const loai_mon = document.getElementById('new-loai-mon').value;
   const gia_tien = document.getElementById('new-gia-tien').value;
   const so_luong = document.getElementById('new-so-luong').value;
+  const da_ban = document.getElementById('new-da-ban').value;
   const mo_ta = document.getElementById('new-mo-ta').value.trim();
   const fileInput = document.getElementById('new-anh-minh-hoa');
   const oldImage = document.getElementById('preview-anh-minh-hoa').dataset.oldImage;
@@ -451,6 +455,7 @@ async function submitAddMenu() {
         loai_mon,
         gia_tien: parseFloat(gia_tien),
         so_luong: parseInt(so_luong) || 0,
+        da_ban: parseInt(da_ban) || 0,
         anh_minh_hoa,
         mo_ta,
         sizes

@@ -41,10 +41,19 @@ async function loadTables() {
   try {
     const res = await fetch('/api/cashier/tables');
     if (!res.ok) throw new Error('Lỗi fetch tables');
-    tables = await res.json();
+    const newTables = await res.json();
+    newTables.forEach(nt => {
+      const oldTable = tables.find(t => t.id === nt.id);
+      if (oldTable) {
+        nt.isCallingStaff = oldTable.isCallingStaff;
+        nt.callNote = oldTable.callNote;
+        nt.isCheckoutRequest = oldTable.isCheckoutRequest;
+      }
+    });
+    tables = newTables;
     renderTables();
     checkUnconfirmedOrders();
-    
+
     if (selectedTable) {
       const updatedTable = tables.find(t => t.id === selectedTable.id);
       if (updatedTable) {
@@ -78,7 +87,7 @@ document.querySelectorAll('input[name="table_status"]').forEach(radio => {
 });
 function renderTables() {
   tablesGrid.innerHTML = '';
-  
+
   let allCount = 0;
   let servingCount = 0;
   let emptyCount = 0;
@@ -86,9 +95,9 @@ function renderTables() {
   // Compute counts for the selected area
   let areaTables = tables.filter(t => {
     let tArea = t.area_name || 'Không rõ';
-    return selectedFilterArea === 'Tất cả' || 
-           tArea === selectedFilterArea || 
-           (selectedFilterArea === 'VIP' && tArea.toLowerCase().includes('vip'));
+    return selectedFilterArea === 'Tất cả' ||
+      tArea === selectedFilterArea ||
+      (selectedFilterArea === 'VIP' && tArea.toLowerCase().includes('vip'));
   });
 
   areaTables.forEach(t => {
@@ -111,7 +120,7 @@ function renderTables() {
 
     const card = document.createElement('div');
     card.className = `table-box ${isActiveOrder ? 'serving' : ''} ${selectedTable && selectedTable.id === t.id ? 'active' : ''}`;
-    
+
     let totalAmt = '';
     let guestIcon = '';
     if (isActiveOrder && t.active_order) {
@@ -124,21 +133,32 @@ function renderTables() {
       }
     }
 
+    if (t.isCallingStaff || t.isCheckoutRequest) {
+      card.classList.add(t.isCheckoutRequest ? 'blink-border-green' : 'blink-border');
+    }
+
     card.innerHTML = `
       <div class="table-details">
         <span>${totalAmt}</span>
         <span>${guestIcon}</span>
       </div>
       <div class="table-name">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: middle;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
         ${t.table_number}
       </div>
+      ${t.isCheckoutRequest ? `<div class="call-staff-note blink-bg-green" title="Khách hàng yêu cầu thanh toán"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px; vertical-align: middle;"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg> Yêu cầu thanh toán</div>` : ''}
+      ${!t.isCheckoutRequest && t.isCallingStaff ? `<div class="call-staff-note blink-bg" title="Gọi nhân viên${t.callNote && t.callNote !== 'Gọi nhân viên' ? ': ' + t.callNote : ''}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px; vertical-align: middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg> Gọi nhân viên</div>` : ''}
     `;
 
     card.addEventListener('click', () => {
+      if (t.isCallingStaff || t.isCheckoutRequest) {
+        t.isCallingStaff = false;
+        t.isCheckoutRequest = false;
+        renderTables();
+      }
       selectedTable = t;
       document.querySelectorAll('.table-box').forEach(b => b.classList.remove('active'));
       card.classList.add('active');
+      document.querySelector('.pos-layout').classList.add('show-right-pane');
       renderRightPane();
     });
 
@@ -148,7 +168,84 @@ function renderTables() {
   document.getElementById('count-all').textContent = allCount;
   document.getElementById('count-using').textContent = servingCount;
   document.getElementById('count-empty').textContent = emptyCount;
+
+  renderNotifications();
 }
+
+function renderNotifications() {
+  const callingTables = tables.filter(t => t.isCallingStaff || t.callNote || t.isCheckoutRequest);
+  const countEl = document.getElementById('notification-count');
+  const listEl = document.getElementById('notifications-list');
+
+  if (!countEl || !listEl) return;
+
+  if (callingTables.length > 0) {
+    countEl.style.display = 'block';
+    countEl.textContent = callingTables.length;
+    let html = '';
+    callingTables.forEach(t => {
+      if (t.isCheckoutRequest) {
+        html += `
+          <div class="dropdown-item" style="border-bottom: 1px solid #f3f4f6; padding: 16px; display: flex; flex-direction: column; gap: 12px; cursor: default;">
+            <div style="display: flex; justify-content: space-between; align-items: center;" onclick="goToTable(${t.id})" style="cursor: pointer;">
+              <strong style="color: #111827; font-size: 16px; cursor: pointer;">${t.table_number}</strong>
+              <span style="font-size: 13px; color: #10b981; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                Yêu cầu thanh toán
+              </span>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 4px;">
+              <button onclick="event.stopPropagation(); clearCheckoutRequest(${t.id})" style="padding: 8px 16px; background: white; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #374151;">Huỷ bỏ</button>
+              <button onclick="event.stopPropagation(); acceptCheckout(${t.id})" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Thanh toán</button>
+            </div>
+          </div>
+        `;
+      }
+      if (t.isCallingStaff || t.callNote) {
+        html += `
+          <div class="dropdown-item" style="border-bottom: 1px solid #f3f4f6; padding: 16px; display: flex; flex-direction: column; gap: 12px; cursor: default;">
+            <div style="display: flex; justify-content: space-between; align-items: center;" onclick="goToTable(${t.id})" style="cursor: pointer;">
+              <strong style="color: #111827; font-size: 16px; cursor: pointer;">${t.table_number}</strong>
+              <span style="font-size: 13px; color: #ef4444; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                Gọi nhân viên
+              </span>
+            </div>
+            ${t.callNote ? `<div style="font-size: 14px; color: #1f2937; padding: 10px 12px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 4px; font-weight: 500;">${t.callNote}</div>` : ''}
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 4px;">
+              <button onclick="event.stopPropagation(); clearCallNote(${t.id})" style="padding: 8px 16px; background: white; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #374151;">Huỷ bỏ</button>
+              <button onclick="event.stopPropagation(); acceptCall(${t.id})" style="padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Xác nhận</button>
+            </div>
+          </div>
+        `;
+      }
+    });
+    listEl.innerHTML = html;
+  } else {
+    countEl.style.display = 'none';
+    listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280; font-size: 13px;">Không có thông báo nào</div>';
+  }
+}
+
+function goToTable(tableId) {
+  document.getElementById('notifications-dropdown').style.display = 'none';
+  const table = tables.find(t => t.id === tableId);
+  if (table) {
+    // If table is still calling, clear the blinking state but keep the note
+    if (table.isCallingStaff) {
+      table.isCallingStaff = false;
+    }
+    selectedTable = table;
+    renderTables();
+    document.querySelector('.pos-layout').classList.add('show-right-pane');
+    renderRightPane();
+  }
+}
+
+window.toggleNotifications = function () {
+  const dropdown = document.getElementById('notifications-dropdown');
+  dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+};
 
 function renderRightPane() {
   if (!selectedTable) {
@@ -161,50 +258,90 @@ function renderRightPane() {
 
   currentTableName.innerHTML = `${selectedTable.table_number} / Tất cả`;
 
-  const noteHtml = (selectedTable.active_order && selectedTable.active_order.note) ? `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 8px 12px; border-radius: 4px; margin: 12px 12px 0 12px;">📝 Ghi chú: <b>${selectedTable.active_order.note}</b></div>` : '';
+  orderItemsList.innerHTML = '';
+  let totalQty = 0;
+  let totalPrice = 0;
+  let index = 1;
 
-  if (!selectedTable.active_order || selectedTable.active_order.items.length === 0) {
-    orderItemsList.innerHTML = `${noteHtml}<div class="empty-state" style="text-align:center; margin-top:20px; color:#888;">Bàn chưa có order</div>`;
+  let html = '';
+  if (selectedTable.isCheckoutRequest) {
+    html += `
+      <div style="background: #ecfdf5; border: 1px solid #10b981; color: #047857; padding: 10px; margin: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg> Khách hàng yêu cầu thanh toán</strong></div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="clearCheckoutRequest(${selectedTable.id})" style="background: transparent; border: 1px solid #10b981; padding: 4px 8px; border-radius: 4px; cursor: pointer; color: #047857; font-weight: 600; font-size: 12px;">Huỷ bỏ</button>
+          <button onclick="acceptCheckout(${selectedTable.id})" style="background: #10b981; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; color: white; font-weight: 600; font-size: 12px;">Thanh toán</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (selectedTable.callNote) {
+    html += `
+      <div style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 10px; margin: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg> Gọi nhân viên${selectedTable.callNote && selectedTable.callNote !== 'Gọi nhân viên' ? ': ' + selectedTable.callNote : ''}</strong></div>
+        <button onclick="clearCallNote(${selectedTable.id})" style="background: transparent; border: none; cursor: pointer; color: #b91c1c; font-weight: bold; font-size: 14px;">✕</button>
+      </div>
+    `;
+  }
+
+  // Lọc chỉ hiện các món đã nấu xong (done) ở màn thanh toán thu ngân
+  let confirmedItems = [];
+  if (selectedTable.active_order && selectedTable.active_order.items) {
+    confirmedItems = selectedTable.active_order.items.filter(i => i.status === 'done');
+  }
+
+  if (confirmedItems.length === 0) {
+    html += `<div class="empty-state" style="text-align:center; margin-top:20px; color:#888;">Bàn chưa có order hoặc đang chờ duyệt/phục vụ</div>`;
+    orderItemsList.innerHTML = html;
     totalQtyEl.textContent = '0';
     totalPriceEl.textContent = '0';
     return;
   }
 
-  orderItemsList.innerHTML = noteHtml;
-  let totalQty = 0;
-  let totalPrice = 0;
-  let index = 1;
+  const rounds = groupItemsByRound(confirmedItems);
+  rounds.forEach((roundItems, rIdx) => {
+    const roundNote = roundItems[0].item_note;
+    const roundDiv = document.createElement('div');
+    roundDiv.style.marginBottom = '20px';
 
-  // Lọc chỉ hiện các món đã nấu xong (done) ở màn thanh toán thu ngân
-  const confirmedItems = selectedTable.active_order.items.filter(i => i.status === 'done');
+    let html = '';
+    if (rounds.length > 1) {
+      html += `<div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #4b5563; padding-left: 10px;">Lượt ${rIdx + 1}</div>`;
+    }
 
-  if (confirmedItems.length === 0) {
-    orderItemsList.innerHTML = `<div class="empty-state" style="text-align:center; margin-top:20px; color:#888;">Đơn hàng đang chờ duyệt</div>`;
-  }
+    if (roundNote) {
+      html += `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin: 0 10px 10px 10px; border-radius: 4px; display:flex; align-items:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Ghi chú: <b style="margin-left:4px;">${roundNote}</b>
+       </div>`;
+    }
 
-  confirmedItems.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'pos-order-item';
-    const itemTotal = item.price * item.quantity;
-    totalQty += item.quantity;
-    totalPrice += itemTotal;
+    roundItems.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      totalQty += item.quantity;
+      totalPrice += itemTotal;
+      html += `
+        <div class="pos-order-item">
+          <div class="pos-item-idx">${index++}</div>
+          <div>
+            <div class="pos-item-name">${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</div>
+            <div class="pos-item-price">${formatPrice(item.price)}</div>
+          </div>
+          <div class="pos-item-qty">
+            <button class="pos-qty-btn" onclick="openCancelQtyModal(${item.order_item_id}, '${item.name}', ${item.quantity}, 1, false)">-</button>
+            <span class="pos-qty-val">${item.quantity}</span>
+            <button class="pos-qty-btn" onclick="updateItemQty(${item.order_item_id}, ${item.quantity + 1})">+</button>
+          </div>
+          <div class="pos-item-total" style="display:flex; align-items:center; justify-content: flex-end; gap:8px;">
+            ${formatPrice(itemTotal)}
+          </div>
+        </div>
+      `;
+    });
 
-    row.innerHTML = `
-      <div class="pos-item-idx">${index++}</div>
-      <div>
-        <div class="pos-item-name">${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</div>
-        <div class="pos-item-price">${formatPrice(item.price)}</div>
-      </div>
-      <div class="pos-item-qty">
-        <button class="pos-qty-btn" onclick="openCancelQtyModal(${item.order_item_id}, '${item.name}', ${item.quantity}, 1, false)">-</button>
-        <span class="pos-qty-val">${item.quantity}</span>
-        <button class="pos-qty-btn" onclick="updateItemQty(${item.order_item_id}, ${item.quantity + 1})">+</button>
-      </div>
-      <div class="pos-item-total" style="display:flex; align-items:center; justify-content: flex-end; gap:8px;">
-        ${formatPrice(itemTotal)}
-      </div>
-    `;
-    orderItemsList.appendChild(row);
+    roundDiv.innerHTML = html;
+    orderItemsList.appendChild(roundDiv);
   });
 
   totalQtyEl.textContent = totalQty;
@@ -213,7 +350,7 @@ function renderRightPane() {
 
 window.updateItemQty = async (orderItemId, newQty) => {
   if (newQty < 1) return; // Nếu < 1 thì mở modal hủy rồi nên k vào đây
-  
+
   try {
     const res = await fetch('/api/cashier/update-item-qty', {
       method: 'POST',
@@ -236,18 +373,48 @@ window.updateItemQty = async (orderItemId, newQty) => {
 let currentConfirmTab = 'unconfirmed';
 let allCategorizedOrders = { unconfirmed: {}, confirmed: {}, canceled: {} };
 
+function groupItemsByRound(items) {
+  items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  let rounds = [];
+  items.forEach(item => {
+    if (rounds.length === 0) {
+      rounds.push([item]);
+    } else {
+      const lastRound = rounds[rounds.length - 1];
+      const lastItem = lastRound[lastRound.length - 1];
+      const timeDiff = Math.abs(new Date(item.created_at) - new Date(lastItem.created_at));
+      if (timeDiff <= 10000) lastRound.push(item);
+      else rounds.push([item]);
+    }
+  });
+  return rounds;
+}
+
 function checkUnconfirmedOrders() {
   allCategorizedOrders = { unconfirmed: {}, confirmed: {}, canceled: {} };
-  
+
   tables.forEach(t => {
     if (t.active_order && t.active_order.items) {
+
       const unconfItems = t.active_order.items.filter(i => i.status === 'unconfirmed');
       const confItems = t.active_order.items.filter(i => ['cooking', 'done'].includes(i.status));
       const cancItems = t.active_order.items.filter(i => i.status === 'canceled');
-      
-      if (unconfItems.length > 0) allCategorizedOrders.unconfirmed[t.id] = { table: t, items: unconfItems };
-      if (confItems.length > 0) allCategorizedOrders.confirmed[t.id] = { table: t, items: confItems };
-      if (cancItems.length > 0) allCategorizedOrders.canceled[t.id] = { table: t, items: cancItems };
+
+      if (unconfItems.length > 0) {
+        groupItemsByRound(unconfItems).forEach((roundItems, idx) => {
+          allCategorizedOrders.unconfirmed[`${t.id}_${idx}`] = { table: t, items: roundItems, round_idx: idx + 1 };
+        });
+      }
+      if (confItems.length > 0) {
+        groupItemsByRound(confItems).forEach((roundItems, idx) => {
+          allCategorizedOrders.confirmed[`${t.id}_${idx}`] = { table: t, items: roundItems, round_idx: idx + 1 };
+        });
+      }
+      if (cancItems.length > 0) {
+        groupItemsByRound(cancItems).forEach((roundItems, idx) => {
+          allCategorizedOrders.canceled[`${t.id}_${idx}`] = { table: t, items: roundItems, round_idx: idx + 1 };
+        });
+      }
     }
   });
 
@@ -303,14 +470,14 @@ function renderConfirmModal(categorized) {
     return;
   }
 
-  keys.forEach(tableId => {
-    const data = dataMap[tableId];
+  keys.forEach(key => {
+    const data = dataMap[key];
     const orderTime = new Date(data.table.active_order.created_at);
     const timeDiff = Math.floor((new Date() - orderTime) / 60000); // phút
 
     const block = document.createElement('div');
     block.className = 'unconf-block';
-    
+
     let itemsHtml = data.items.map(i => {
       let actionBtns = '';
       if (currentConfirmTab === 'unconfirmed' || currentConfirmTab === 'confirmed') {
@@ -320,12 +487,12 @@ function renderConfirmModal(categorized) {
           </button>
         `;
       }
-      
+
       let badge = '';
       if (currentConfirmTab === 'confirmed') {
-         badge = i.status === 'cooking' ? '<span style="color:#f59e0b; font-size:12px; margin-left:8px; font-weight:600;">Đang chế biến</span>' : '<span style="color:#10b981; font-size:12px; margin-left:8px; font-weight:600;">Đã phục vụ</span>';
+        badge = i.status === 'cooking' ? '<span style="color:#f59e0b; font-size:12px; margin-left:8px; font-weight:600;">Đang chế biến</span>' : '<span style="color:#10b981; font-size:12px; margin-left:8px; font-weight:600;">Đã phục vụ</span>';
       } else if (currentConfirmTab === 'canceled') {
-         badge = '<span style="color:#ef4444; font-size:12px; margin-left:8px; font-weight:600;">Đã hủy</span>';
+        badge = '<span style="color:#ef4444; font-size:12px; margin-left:8px; font-weight:600;">Đã hủy</span>';
       }
 
       return `
@@ -340,21 +507,26 @@ function renderConfirmModal(categorized) {
     }).join('');
 
     let actionsHtml = '';
+    const tableId = data.table.id;
     if (currentConfirmTab === 'unconfirmed') {
+      const itemIdsJson = JSON.stringify(data.items.map(i => i.order_item_id));
       actionsHtml = `
         <div class="unconf-actions">
           <button class="unconf-btn-cancel" onclick="openRejectOrderModal(${tableId}, '${data.table.table_number}')">Hủy toàn bộ</button>
-          <button class="unconf-btn-confirm" onclick="confirmOrder(${tableId})">Xác nhận</button>
+          <button class="unconf-btn-confirm" onclick="confirmOrder(${tableId}, ${itemIdsJson.replace(/"/g, "'")})">Xác nhận lượt này</button>
         </div>
       `;
     }
 
     block.innerHTML = `
       <div class="unconf-header">
-        <div>${data.table.table_number} - Tất cả <span class="unconf-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${timeDiff} phút trước</span></div>
+        <div>${data.table.table_number} - Lượt ${data.round_idx} <span class="unconf-time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${timeDiff} phút trước</span></div>
         ${currentConfirmTab === 'confirmed' ? '<span style="color:#10b981; font-size:12px;">Đã xác nhận</span>' : ''}
       </div>
-      ${data.table.active_order.note ? `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin: 12px 12px 0 12px; border-radius: 4px;">📝 Ghi chú: <b>${data.table.active_order.note}</b></div>` : ''}
+      ${data.items[0].item_note ? `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin: 12px 12px 0 12px; border-radius: 4px; display:flex; align-items:center;">
+         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+         Ghi chú: <b style="margin-left:4px;">${data.items[0].item_note}</b>
+      </div>` : ''}
       <div class="unconf-items">
         ${itemsHtml}
       </div>
@@ -364,12 +536,12 @@ function renderConfirmModal(categorized) {
   });
 }
 
-window.confirmOrder = async (tableId) => {
+window.confirmOrder = async (tableId, itemIds = []) => {
   try {
     const res = await fetch('/api/cashier/confirm-orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ table_id: tableId })
+      body: JSON.stringify({ table_id: tableId, item_ids: itemIds })
     });
     if (res.ok) {
       showToast('Đã xác nhận và báo bếp thành công!');
@@ -386,7 +558,7 @@ const cancelQtyModal = document.getElementById('cancel-qty-modal');
 
 window.openCancelQtyModal = (orderItemId, itemName, currentQty, qtyToCancel, isFullCancel) => {
   cancelItemState = { id: orderItemId, max: currentQty, qty: qtyToCancel };
-  
+
   if (isFullCancel) {
     document.getElementById('cancel-qty-title').textContent = 'Xác nhận hủy món';
     document.getElementById('cancel-qty-desc').textContent = `Bạn có chắc chắn muốn hủy món "${itemName}" không?`;
@@ -396,7 +568,7 @@ window.openCancelQtyModal = (orderItemId, itemName, currentQty, qtyToCancel, isF
     document.getElementById('cancel-qty-desc').textContent = `Bạn có chắc chắn muốn giảm số lượng món "${itemName}" không?`;
     document.getElementById('cancel-qty-selector').style.display = 'flex';
   }
-  
+
   document.getElementById('cancel-qty-max').textContent = currentQty;
   document.getElementById('cancel-qty-val').textContent = qtyToCancel;
   cancelQtyModal.style.display = 'flex';
@@ -439,7 +611,7 @@ document.getElementById('cancel-qty-confirm').addEventListener('click', async ()
         body: JSON.stringify({ order_item_id: cancelItemState.id, quantity: newQty })
       });
     }
-    
+
     if (res.ok) {
       showToast('Đã cập nhật đơn hàng thành công!');
       closeCancelQtyModal();
@@ -469,9 +641,9 @@ window.closeRejectOrderModal = () => {
 document.getElementById('reject-order-confirm').addEventListener('click', async () => {
   const select = document.getElementById('reject-reason-select');
   const reason = select ? select.value : 'Lý do khác';
-  
+
   if (!rejectTableId) return;
-  
+
   // Gọi API hủy từng món unconfirmed của table này
   // Để tối ưu thì backend nên có 1 API reject toàn bộ unconfirmed theo table,
   // nhưng tạm thời gọi liên tiếp hoặc backend sẽ xử lý. 
@@ -490,7 +662,7 @@ document.getElementById('reject-order-confirm').addEventListener('click', async 
       showToast('Đã từ chối các món gọi thành công!');
       closeRejectOrderModal();
       await loadTables();
-    } catch(err) {
+    } catch (err) {
       showToast('Lỗi kết nối khi hủy', false);
     }
   }
@@ -509,6 +681,19 @@ function initWebSocket() {
     const data = JSON.parse(event.data);
     if (data.type === 'item_cooked_cashier_notify') {
       showToast(data.message);
+    } else if (data.type === 'call_staff') {
+      const targetTable = tables.find(t => t.table_number === data.tableName);
+      if (targetTable) {
+        targetTable.isCallingStaff = true;
+        targetTable.callNote = data.note;
+        renderTables();
+      }
+    } else if (data.type === 'checkout_request') {
+      const targetTable = tables.find(t => t.id === data.table_id);
+      if (targetTable) {
+        targetTable.isCheckoutRequest = true;
+        renderTables();
+      }
     } else if (data.type === 'new_order' || data.type === 'table_status_changed') {
       loadTables();
     }
@@ -526,7 +711,7 @@ window.closeCheckoutModal = () => {
 
 btnCheckout.addEventListener('click', () => {
   if (!selectedTable || !selectedTable.active_order) return;
-  
+
   const confirmedItems = selectedTable.active_order.items.filter(i => i.status !== 'unconfirmed' && i.status !== 'canceled');
   let totalPrice = 0;
   confirmedItems.forEach(item => {
@@ -543,20 +728,20 @@ document.getElementById('checkout-confirm-btn').addEventListener('click', async 
     const btn = document.getElementById('checkout-confirm-btn');
     btn.disabled = true;
     btn.textContent = 'Đang xử lý...';
-    
+
     const res = await fetch('/api/payment/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ table_id: selectedTable.id })
     });
-    
+
     if (res.ok) {
       showToast(`Đã thanh toán ${selectedTable.table_number}`);
       selectedTable = null;
       loadTables();
       closeCheckoutModal();
     }
-  } catch(err) {
+  } catch (err) {
     showToast('Thanh toán lỗi', false);
   } finally {
     const btn = document.getElementById('checkout-confirm-btn');
@@ -577,19 +762,19 @@ btnPrintTemp.addEventListener('click', () => {
     document.getElementById('inv-res-address').textContent = currentResInfo.dia_chi;
     document.getElementById('inv-res-phone').textContent = 'SĐT: ' + currentResInfo.so_dien_thoai;
   }
-  
+
   document.getElementById('inv-table-name').textContent = selectedTable.table_number;
   document.getElementById('inv-cashier').textContent = currentFullname;
-  
+
   const now = new Date();
-  const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+  const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
   document.getElementById('inv-time').textContent = timeString;
 
   const invItemsBody = document.getElementById('inv-items');
   invItemsBody.innerHTML = '';
-  
+
   const confirmedItems = selectedTable.active_order.items.filter(i => i.status === 'done');
-  
+
   if (confirmedItems.length === 0) {
     showToast('Không có món nào đã xác nhận để in!', false);
     return;
@@ -613,39 +798,39 @@ btnPrintTemp.addEventListener('click', () => {
 
   // Generate PDF
   const element = document.getElementById('invoice-template');
-  
+
   // Hiển thị tạm để lấy chiều cao nội dung
   element.parentElement.style.display = 'block';
   const pxHeight = element.offsetHeight;
   element.parentElement.style.display = 'none';
-  
+
   // Chuyển đổi px sang mm (1px ~ 0.264583 mm) và cộng thêm 5mm lề
   const heightInMm = (pxHeight * 0.264583) + 5;
 
-  const fileDate = `${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}`;
+  const fileDate = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
   const fileTime = `${now.getHours()}h${now.getMinutes()}`;
   const fileName = `${selectedTable.table_number} - ${fileTime} - ${fileDate}.pdf`;
-  
+
   const opt = {
-    margin:       0,
-    filename:     fileName,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2 },
-    jsPDF:        { unit: 'mm', format: [80, heightInMm], orientation: 'portrait' }
+    margin: 0,
+    filename: fileName,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: [80, heightInMm], orientation: 'portrait' }
   };
 
   showToast('Đang tạo hóa đơn PDF...');
-  
+
   // Mở tab trống ngay lập tức để tránh trình duyệt chặn popup
   const previewWindow = window.open('', '_blank');
   if (previewWindow) {
     previewWindow.document.write('<p style="font-family: sans-serif; padding: 20px;">Đang tạo hoá đơn, vui lòng chờ...</p>');
   }
-  
+
   // Tạo blob và xử lý
   html2pdf().set(opt).from(element).output('blob').then((pdfBlob) => {
     const blobUrl = URL.createObjectURL(pdfBlob);
-    
+
     if (previewWindow) {
       const viewerHtml = `
         <!DOCTYPE html>
@@ -761,7 +946,7 @@ window.submitChangePassword = async () => {
   const oldPassword = document.getElementById('old-password').value;
   const newPassword = document.getElementById('new-password').value;
   if (!oldPassword || !newPassword) return showToast('Vui lòng nhập đủ mật khẩu', false);
-  
+
   const token = sessionStorage.getItem('adminToken');
   try {
     const res = await fetch('/api/auth/change-password', {
@@ -776,7 +961,7 @@ window.submitChangePassword = async () => {
     } else {
       showToast(data.error || 'Lỗi đổi mật khẩu', false);
     }
-  } catch(err) {
+  } catch (err) {
     showToast('Lỗi máy chủ', false);
   }
 };
@@ -969,12 +1154,46 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function selectAllRows(checkbox) {
-  const rowCheckboxes = document.querySelectorAll('.row-checkbox');
-  rowCheckboxes.forEach(cb => {
-    cb.checked = checkbox.checked;
-  });
+  const cbs = document.querySelectorAll('.row-checkbox');
+  cbs.forEach(cb => cb.checked = checkbox.checked);
   toggleDeleteButton();
 }
+
+window.clearCallNote = function (tableId) {
+  const table = tables.find(t => t.id === tableId);
+  if (table) {
+    table.callNote = '';
+    table.isCallingStaff = false;
+    renderTables();
+    if (selectedTable && selectedTable.id === tableId) {
+      renderRightPane();
+    }
+  }
+};
+
+window.acceptCall = function (tableId) {
+  clearCallNote(tableId);
+  goToTable(tableId);
+};
+
+window.clearCheckoutRequest = function (tableId) {
+  const table = tables.find(t => t.id === tableId);
+  if (table) {
+    table.isCheckoutRequest = false;
+    renderTables();
+    if (selectedTable && selectedTable.id === tableId) {
+      renderRightPane();
+    }
+  }
+};
+
+window.acceptCheckout = function (tableId) {
+  clearCheckoutRequest(tableId);
+  goToTable(tableId);
+  // Optionally open the checkout modal automatically
+  document.getElementById('btn-checkout').click();
+};
+
 
 async function adjustStockLocally(id, diff) {
   const token = sessionStorage.getItem('cashierToken');
@@ -1051,7 +1270,7 @@ function editMenu(id) {
   document.getElementById('new-so-luong').value = item.so_luong !== undefined ? item.so_luong : 0;
   document.getElementById('new-anh-minh-hoa').value = '';
   document.getElementById('new-mo-ta').value = item.description || '';
-  
+
   const sizesContainer = document.getElementById('sizes-container');
   sizesContainer.innerHTML = '';
   if (item.sizes && item.sizes.length > 0) {
@@ -1102,7 +1321,7 @@ async function submitAddMenu() {
   const mo_ta = document.getElementById('new-mo-ta').value.trim();
   const fileInput = document.getElementById('new-anh-minh-hoa');
   const oldImage = document.getElementById('preview-anh-minh-hoa').dataset.oldImage;
-  
+
   // Extract sizes
   const sizes = [];
   document.querySelectorAll('#sizes-container .size-row').forEach(row => {
@@ -1203,7 +1422,7 @@ function renderManageCategoryList() {
       e.dataTransfer.effectAllowed = 'move';
       div.style.opacity = '0.5';
     });
-    
+
     div.addEventListener('dragend', () => {
       div.style.opacity = '1';
       document.querySelectorAll('#manage-category-list > div').forEach(el => {
@@ -1225,7 +1444,7 @@ function renderManageCategoryList() {
         div.style.borderBottom = '';
       }
     });
-    
+
     div.addEventListener('dragleave', (e) => {
       div.style.borderTop = '';
       div.style.borderBottom = '1px solid var(--border-color)';
@@ -1239,18 +1458,18 @@ function renderManageCategoryList() {
       if (e.clientY - offset > 0) {
         targetIndex = index + 1;
       }
-      
+
       if (draggedCategoryIndex === targetIndex || draggedCategoryIndex === targetIndex - 1) {
         renderManageCategoryList();
         return;
       }
-      
+
       const item = categoriesData.splice(draggedCategoryIndex, 1)[0];
       if (targetIndex > draggedCategoryIndex) {
         targetIndex--;
       }
       categoriesData.splice(targetIndex, 0, item);
-      
+
       renderManageCategoryList();
       await saveCategoryOrder();
     });
@@ -1284,7 +1503,7 @@ async function saveCategoryOrder() {
     });
     await loadCategories();
     loadMenuData();
-  } catch(err) { console.error(err); }
+  } catch (err) { console.error(err); }
 }
 
 async function deleteCategoryItem(ma_danh_muc) {
@@ -1423,7 +1642,7 @@ document.getElementById('menu-search-input').addEventListener('input', (e) => {
 
 // Initialization for Menu (drag/drop, search)
 document.addEventListener('DOMContentLoaded', () => {
-// Tìm kiếm và lọc thực đơn
+  // Tìm kiếm và lọc thực đơn
   const searchInput = document.getElementById('menu-search-input');
   const filterSelect = document.getElementById('filter-category');
   if (searchInput) {
@@ -1475,7 +1694,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewTables = document.getElementById('view-tables');
   const viewMenu = document.getElementById('view-menu');
   const posRightPanel = document.getElementById('pos-right-panel');
-  
+
   if (tabTables && tabMenu) {
     tabTables.addEventListener('click', () => {
       tabTables.classList.add('active');
@@ -1483,23 +1702,23 @@ document.addEventListener('DOMContentLoaded', () => {
       viewTables.style.display = 'flex';
       viewMenu.style.display = 'none';
       posRightPanel.style.display = 'flex'; // show right panel
-      
+
       // Remove explicit width to let flexbox work naturally
       const posLeft = document.getElementById('pos-left-panel');
-      if(posLeft) posLeft.style.width = '';
+      if (posLeft) posLeft.style.width = '';
     });
-    
+
     tabMenu.addEventListener('click', () => {
       tabMenu.classList.add('active');
       tabTables.classList.remove('active');
       viewTables.style.display = 'none';
       viewMenu.style.display = 'block';
       posRightPanel.style.display = 'none'; // hide right panel
-      
+
       // Let flexbox expand it to full width
       const posLeft = document.getElementById('pos-left-panel');
-      if(posLeft) posLeft.style.width = '';
-      
+      if (posLeft) posLeft.style.width = '';
+
       loadCategories();
       loadMenuData();
     });

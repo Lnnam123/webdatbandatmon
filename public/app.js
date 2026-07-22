@@ -100,13 +100,23 @@ async function initApp(qrToken) {
       const catRes = await fetch('/api/categories');
       if (catRes.ok) {
         state.categories = await catRes.json();
+        // Thêm danh mục Ảo "Bán chạy nhất" vào đầu danh sách
+        state.categories.unshift({ ma_danh_muc: 'best-seller', ten_danh_muc: '🔥 Bán chạy nhất' });
+
         if (categoriesList) {
           categoriesList.innerHTML = '';
-          state.categories.forEach((cat, index) => {
+          
+          const allBtn = document.createElement('button');
+          allBtn.className = 'kiot-category-tab active';
+          allBtn.setAttribute('data-category', 'all');
+          allBtn.textContent = 'Tất cả';
+          categoriesList.appendChild(allBtn);
+
+          state.categories.forEach((cat) => {
             const btn = document.createElement('button');
-            btn.className = 'kiot-category-tab' + (index === 0 ? ' active' : '');
+            btn.className = 'kiot-category-tab';
             btn.setAttribute('data-category', cat.ma_danh_muc);
-            btn.textContent = cat.ten_danh_muc;
+            btn.textContent = cat.ma_danh_muc === 'best-seller' ? '🔥 Bán chạy' : cat.ten_danh_muc;
             categoriesList.appendChild(btn);
           });
         }
@@ -226,8 +236,15 @@ function renderMenu() {
   }
 
   state.categories.forEach(cat => {
-    const itemsInCat = state.menu.filter(item => item.category === cat.ma_danh_muc);
-    if (itemsInCat.length === 0) return;
+    let itemsInCat = [];
+    if (cat.ma_danh_muc === 'best-seller') {
+      itemsInCat = state.menu.filter(i => i.da_ban > 0).sort((a, b) => b.da_ban - a.da_ban).slice(0, 5);
+    } else {
+      itemsInCat = state.menu.filter(item => item.category === cat.ma_danh_muc);
+    }
+    
+    // Luôn render section, nếu trống thì sẽ có thông báo
+    // (Bởi vì nếu không render, khi bấm tab sẽ bị màn hình trắng)
 
     const section = document.createElement('div');
     section.className = 'menu-group-section';
@@ -239,13 +256,14 @@ function renderMenu() {
     section.appendChild(title);
 
     const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '16px';
+    list.className = 'kiot-menu-section-list';
 
-    itemsInCat.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'kiot-menu-item';
+    if (itemsInCat.length === 0) {
+      list.innerHTML = `<p style="text-align: center; color: var(--text-secondary); width: 100%; padding: 20px 0;">Chưa có món nào trong danh mục này.</p>`;
+    } else {
+      itemsInCat.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'kiot-menu-item';
       
       const imgUrl = item.image_url 
         ? (item.image_url.startsWith('http') || item.image_url.startsWith('/uploads') ? item.image_url : `/assets/${item.image_url}`) 
@@ -284,6 +302,7 @@ function renderMenu() {
       `;
       list.appendChild(card);
     });
+    }
 
     section.appendChild(list);
     menuItemsGrid.appendChild(section);
@@ -433,11 +452,13 @@ function showSizeSelectionModal(menuItem) {
     const selected = document.querySelector('input[name="selected_size"]:checked');
     if (selected) {
       document.getElementById('size-selection-modal').style.display = 'none';
+      document.body.style.overflow = '';
       addToCart(menuItem.id, true, selected.value, parseFloat(selected.getAttribute('data-price')));
     }
   };
   
   document.getElementById('size-selection-modal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 }
 
 function removeFromCart(cartItemId) {
@@ -586,11 +607,29 @@ function setupEventListeners() {
     const target = e.target.closest('.kiot-category-tab');
     if (target && target.hasAttribute('data-category')) {
       const catId = target.getAttribute('data-category');
-      const section = document.getElementById(`category-section-${catId}`);
-      if (section) {
-        // Offset for the sticky header
-        const y = section.getBoundingClientRect().top + window.scrollY - 60;
-        window.scrollTo({ top: y, behavior: 'smooth' });
+      
+      // Update active tab manually here to avoid delay
+      document.querySelectorAll('.kiot-category-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      target.classList.add('active');
+
+      // Scroll categories list to center the active tab horizontally
+      categoriesList.scrollTo({
+        left: target.offsetLeft - categoriesList.clientWidth / 2 + target.clientWidth / 2,
+        behavior: 'smooth'
+      });
+      
+      // Scroll to section
+      if (catId === 'all') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        const section = document.getElementById(`category-section-${catId}`);
+        if (section) {
+          // Offset for any potential sticky headers
+          const y = section.getBoundingClientRect().top + window.scrollY - 80;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
       }
     }
   });
@@ -598,33 +637,40 @@ function setupEventListeners() {
   // ScrollSpy for categories
   window.addEventListener('scroll', () => {
     const sections = document.querySelectorAll('.menu-group-section');
-    let currentId = '';
+    let currentActiveId = 'all';
     
+    // Header offset + a little extra to trigger earlier
+    const scrollPosition = window.scrollY + 100;
+
     sections.forEach(section => {
       const sectionTop = section.offsetTop;
-      if (window.scrollY >= sectionTop - 70) {
-        currentId = section.getAttribute('id').replace('category-section-', '');
+      const sectionHeight = section.offsetHeight;
+      if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
+        currentActiveId = section.id.replace('category-section-', '');
       }
     });
 
-    if (currentId) {
-      const tabs = document.querySelectorAll('.kiot-category-tab');
-      let activeTab = null;
-      tabs.forEach(tab => {
+    // Handle 'all' tab if scroll is at the very top (before any section)
+    if (window.scrollY < 50) {
+      currentActiveId = 'all';
+    }
+
+    // Only update DOM if changed
+    const activeTab = document.querySelector('.kiot-category-tab.active');
+    const activeCatId = activeTab ? activeTab.getAttribute('data-category') : null;
+    
+    if (currentActiveId !== activeCatId) {
+      document.querySelectorAll('.kiot-category-tab').forEach(tab => {
         tab.classList.remove('active');
-        if (tab.getAttribute('data-category') === currentId) {
+        if (tab.getAttribute('data-category') === currentActiveId) {
           tab.classList.add('active');
-          activeTab = tab;
+          // Scroll the tab container to make sure active tab is visible
+          categoriesList.scrollTo({
+            left: tab.offsetLeft - categoriesList.clientWidth / 2 + tab.clientWidth / 2,
+            behavior: 'smooth'
+          });
         }
       });
-      
-      if (activeTab) {
-        // Cuộn ngang thanh danh mục
-        categoriesList.scrollTo({
-          left: activeTab.offsetLeft - categoriesList.clientWidth / 2 + activeTab.clientWidth / 2,
-          behavior: 'smooth'
-        });
-      }
     }
   });
 
@@ -637,14 +683,32 @@ function setupEventListeners() {
     });
   }
 
+  // View toggle buttons
+  const btnListView = document.getElementById('btn-list-view');
+  const btnGridView = document.getElementById('btn-grid-view');
+  if (btnListView && btnGridView) {
+    btnListView.addEventListener('click', () => {
+      menuItemsGrid.classList.remove('grid-view');
+      btnGridView.classList.remove('active');
+      btnListView.classList.add('active');
+    });
+    btnGridView.addEventListener('click', () => {
+      menuItemsGrid.classList.add('grid-view');
+      btnListView.classList.remove('active');
+      btnGridView.classList.add('active');
+    });
+  }
+
   // Giỏ hàng buttons
   openCartCheckoutBtn.addEventListener('click', () => {
     renderCartModal();
     cartModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
   });
 
   closeCartBtn.addEventListener('click', () => {
     cartModal.style.display = 'none';
+    document.body.style.overflow = '';
   });
 
   const addMoreBtn = document.getElementById('add-more-btn');
@@ -696,6 +760,8 @@ function setupEventListeners() {
       if (noteLength) noteLength.textContent = '0';
       updateCartUi();
       cartModal.style.display = 'none';
+      document.body.style.overflow = '';
+      renderMenu(); // Reset số lượng trên menu
       renderActiveOrder();
       
       // Hiển thị success modal thay vì toast
@@ -779,12 +845,14 @@ function setupNewModalsEvents() {
   if (searchBtn && searchModal) {
     searchBtn.addEventListener('click', () => {
       searchModal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
       searchInput.value = '';
       searchResults.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 24px;">Nhập từ khoá để tìm món</p>';
       setTimeout(() => searchInput.focus(), 100);
     });
     closeSearchBtn.addEventListener('click', () => {
       searchModal.style.display = 'none';
+      document.body.style.overflow = '';
     });
 
     searchInput.addEventListener('input', (e) => {
@@ -811,7 +879,7 @@ function setupNewModalsEvents() {
             <div class="kiot-item-name">${item.name}</div>
             <div class="kiot-item-actions" style="flex-direction: row; justify-content: space-between; align-items: center; margin-top: 12px;">
               <div class="kiot-item-price" style="flex: 1;">${formatPrice(item.price)}</div>
-              <button class="kiot-add-btn" onclick="addToCart(${item.id}); document.getElementById('search-modal').style.display='none';"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+              <button class="kiot-add-btn" onclick="addToCart(${item.id}); document.getElementById('search-modal').style.display='none'; document.body.style.overflow='';"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
             </div>
           </div>
         `;
@@ -833,6 +901,7 @@ function setupNewModalsEvents() {
       // Vì "Món đã gọi" cũng nằm trong .kiot-action-btn nên cần lọc
       if (e.target.closest('span') && e.target.closest('span').textContent.includes('Gọi nhân viên')) {
         callStaffModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
         if (callNote) callNote.value = '';
         if (callNoteLen) callNoteLen.textContent = '0';
       } else if (e.target.closest('span') && e.target.closest('span').textContent.includes('Món đã gọi')) {
@@ -840,7 +909,7 @@ function setupNewModalsEvents() {
       }
     });
     if (closeCallBtn) {
-      closeCallBtn.addEventListener('click', () => callStaffModal.style.display = 'none');
+      closeCallBtn.addEventListener('click', () => { callStaffModal.style.display = 'none'; document.body.style.overflow = ''; });
     }
     if (callNote) {
       callNote.addEventListener('input', () => {
@@ -849,8 +918,53 @@ function setupNewModalsEvents() {
     }
     if (submitCallBtn) {
       submitCallBtn.addEventListener('click', () => {
-        callStaffModal.style.display = 'none';
-        showToast('Đã gửi yêu cầu đến nhân viên thành công!', 'success');
+        const reasonRadio = document.querySelector('input[name="call_reason"]:checked');
+        let noteStr = callNote ? callNote.value.trim() : '';
+        
+        if (reasonRadio && reasonRadio.value === 'Thanh toán') {
+          // If they selected checkout, we can trigger the checkout API instead so it shows the green UI!
+          // But wait, the API `/api/checkout` requires session_token and activeOrder.
+          if (state.activeOrder) {
+            fetch('/api/checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                table_id: state.table.id,
+                session_token: state.table.session_token
+              })
+            }).then(() => {
+              callStaffModal.style.display = 'none';
+              document.body.style.overflow = '';
+              showToast('Đã gửi yêu cầu thanh toán!', 'success');
+              state.table.status = 'pending_payment';
+              updateTableStatusUi('pending_payment');
+            }).catch(err => {
+              console.error(err);
+              showToast('Lỗi gửi yêu cầu', 'error');
+            });
+            return;
+          } else {
+             noteStr = 'Yêu cầu thanh toán' + (noteStr ? ' - ' + noteStr : '');
+          }
+        } else {
+           if (!noteStr) noteStr = 'Gọi nhân viên';
+        }
+
+        fetch('/api/call-staff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table_id: state.table.id,
+            note: noteStr
+          })
+        }).then(() => {
+          callStaffModal.style.display = 'none';
+          document.body.style.overflow = '';
+          showToast('Đã gửi yêu cầu đến nhân viên thành công!', 'success');
+        }).catch(err => {
+          console.error(err);
+          showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+        });
       });
     }
   }
@@ -861,6 +975,7 @@ function setupNewModalsEvents() {
   if (closeOrderedBtn) {
     closeOrderedBtn.addEventListener('click', () => {
       orderedModal.style.display = 'none';
+      document.body.style.overflow = '';
     });
   }
 }
@@ -912,7 +1027,8 @@ function openOrderedItems() {
   });
 
   let allGroupsHtml = '';
-  Object.values(groups).sort((a,b) => b.timestamp - a.timestamp).forEach(g => {
+  const sortedGroups = Object.values(groups).sort((a,b) => a.timestamp - b.timestamp);
+  sortedGroups.forEach((g, rIdx) => {
     let itemsHtml = '';
     g.items.forEach((item, index) => {
       let badgeClass = 'kiot-badge-pending';
@@ -930,24 +1046,42 @@ function openOrderedItems() {
       
       const isLast = index === g.items.length - 1;
       const borderStyle = isLast ? '' : 'border-bottom: 1px solid #f0f0f0;';
+      const itemTotal = formatPrice(item.price * item.quantity);
 
       itemsHtml += `
         <div class="kiot-order-item-row" style="display: flex; align-items: center; padding: 12px 0; ${borderStyle}">
           <div style="font-size: 14px; font-weight: 500; width: 28px; color: var(--text-secondary);">${item.quantity}x</div>
           <div class="kiot-order-item-name" style="flex: 1; font-size: 15px; font-weight: 500; color: #333;">
-            ${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}
+            <div style="margin-bottom: 4px;">${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">${formatPrice(item.price)}</div>
           </div>
-          <div class="kiot-order-badge ${badgeClass}" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${badgeText}</div>
+          <div style="text-align: right;">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #000;">${itemTotal}</div>
+            <div class="kiot-order-badge ${badgeClass}" style="font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600; display: inline-block;">${badgeText}</div>
+          </div>
         </div>
       `;
     });
 
+    let noteHtml = '';
+    const groupNote = g.items[0].item_note;
+    if (groupNote) {
+       noteHtml = `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin-bottom: 12px; border-radius: 4px; display:flex; align-items:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Ghi chú: <b style="margin-left:4px;">${groupNote}</b>
+       </div>`;
+    }
+
     allGroupsHtml += `
       <div class="kiot-order-group" style="background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <div class="kiot-order-group-header" style="display: flex; justify-content: space-between; font-weight: 700; font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; color: #000;">
-          <span>${g.time} | ${g.totalItems} món</span>
-          <span>${formatPrice(g.totalPrice)}</span>
+        <div class="kiot-order-group-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; color: #000;">
+          <div>
+            <div style="font-weight: 700; font-size: 16px;">Lượt ${rIdx + 1}</div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">${g.time} | ${g.totalItems} món</div>
+          </div>
+          <div style="font-weight: 700; font-size: 16px;">${formatPrice(g.totalPrice)}</div>
         </div>
+        ${noteHtml}
         <div class="kiot-order-group-items">
           ${itemsHtml}
         </div>
@@ -958,4 +1092,5 @@ function openOrderedItems() {
   body.innerHTML = allGroupsHtml;
 
   modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 }

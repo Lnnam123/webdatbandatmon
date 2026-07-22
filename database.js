@@ -115,12 +115,17 @@ export async function initDb() {
         anh_minh_hoa TEXT,
         mo_ta TEXT,
         con_hang TINYINT NOT NULL DEFAULT 1,
-        so_luong INT DEFAULT 0
+        so_luong INT DEFAULT 0,
+        da_ban INT DEFAULT 0
       )
     `);
 
     try {
       await pool.query(`ALTER TABLE thuc_don ADD COLUMN so_luong INT DEFAULT 0`);
+    } catch (e) {}
+
+    try {
+      await pool.query(`ALTER TABLE thuc_don ADD COLUMN da_ban INT DEFAULT 0`);
     } catch (e) {}
 
     await pool.query(`
@@ -185,6 +190,10 @@ export async function initDb() {
     
     try {
       await pool.query(`ALTER TABLE chi_tiet_don_hang ADD COLUMN ten_size VARCHAR(50) DEFAULT NULL`);
+    } catch (e) {}
+
+    try {
+      await pool.query(`ALTER TABLE chi_tiet_don_hang ADD COLUMN ghi_chu TEXT DEFAULT NULL`);
     } catch (e) {}
 
     console.log('MySQL Database tables verified/created successfully.');
@@ -325,8 +334,8 @@ export async function createOrder(tableId, sessionToken, cart, note = '') {
     if (menuItem) {
       const p = item.price !== undefined ? item.price : 0;
       await dbRun(
-        'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, ten_size, so_luong, gia_ban, trang_thai) VALUES (?, ?, ?, ?, ?, ?)',
-        [orderId, item.id, item.size_name || null, item.quantity, p, 'unconfirmed']
+        'INSERT INTO chi_tiet_don_hang (id_don_hang, id_mon_an, ten_size, so_luong, gia_ban, trang_thai, ghi_chu) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [orderId, item.id, item.size_name || null, item.quantity, p, 'unconfirmed', note]
       );
       // Giảm số lượng tồn kho
       if (menuItem.so_luong !== null && menuItem.so_luong !== undefined) {
@@ -344,17 +353,16 @@ export async function getActiveOrderForTable(tableId, sessionToken) {
     'SELECT id, id_ban as table_id, ma_phien as session_token, trang_thai as status, tong_tien as total_amount, ngay_tao as created_at, ghi_chu as note FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid" ORDER BY id DESC LIMIT 1',
     [tableId, sessionToken]
   );
-  if (!order) return null;
-
-  const items = await dbAll(
-    `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, oi.ten_size, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
-     FROM chi_tiet_don_hang oi
-     JOIN thuc_don mi ON oi.id_mon_an = mi.id
-     WHERE oi.id_don_hang = ?`,
-    [order.id]
-  );
-
-  order.items = items;
+  if (order) {
+    const items = await dbAll(
+      `SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.gia_ban as price, oi.trang_thai as status, oi.ngay_tao as created_at, oi.ten_size, oi.ghi_chu as item_note, mi.id as menu_item_id, mi.ten_mon as name, mi.anh_minh_hoa as image_url, mi.loai_mon as category 
+       FROM chi_tiet_don_hang oi
+       JOIN thuc_don mi ON oi.id_mon_an = mi.id
+       WHERE oi.id_don_hang = ?`,
+      [order.id]
+    );
+    order.items = items;
+  }
   return order;
 }
 
@@ -378,6 +386,18 @@ export async function confirmOrderItems(tableId) {
   if (!order) return false;
 
   await dbRun('UPDATE chi_tiet_don_hang SET trang_thai = "cooking" WHERE id_don_hang = ? AND trang_thai = "unconfirmed"', [order.id]);
+  return true;
+}
+
+export async function confirmOrderItemsByIds(tableId, itemIds) {
+  if (!itemIds || itemIds.length === 0) return false;
+  const table = await dbGet('SELECT ma_phien_hien_tai FROM ban_an WHERE id = ?', [tableId]);
+  if (!table || !table.ma_phien_hien_tai) return false;
+  const order = await dbGet('SELECT id FROM don_hang WHERE id_ban = ? AND ma_phien = ? AND trang_thai != "paid"', [tableId, table.ma_phien_hien_tai]);
+  if (!order) return false;
+
+  const placeholders = itemIds.map(() => '?').join(',');
+  await dbRun(`UPDATE chi_tiet_don_hang SET trang_thai = "cooking" WHERE id_don_hang = ? AND trang_thai = "unconfirmed" AND id IN (${placeholders})`, [order.id, ...itemIds]);
   return true;
 }
 
@@ -440,7 +460,7 @@ export async function confirmPayment(tableId) {
 }
 
 export async function getMenuItems() {
-  const items = await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available, so_luong FROM thuc_don WHERE con_hang = 1');
+  const items = await dbAll('SELECT id, ten_mon as name, gia_tien as price, loai_mon as category, anh_minh_hoa as image_url, mo_ta as description, con_hang as is_available, so_luong, da_ban FROM thuc_don WHERE con_hang = 1');
   const sizes = await dbAll('SELECT id, id_mon_an, ten_size, gia_tien FROM thuc_don_size');
   
   // Gắn mảng sizes vào mỗi món
@@ -452,7 +472,7 @@ export async function getMenuItems() {
 
 export async function addMenuItem(data) {
   const result = await dbRun(
-    'INSERT INTO thuc_don (ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, con_hang, so_luong) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO thuc_don (ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, con_hang, so_luong, da_ban) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [
       data.ten_mon,
       data.gia_tien,
@@ -460,7 +480,8 @@ export async function addMenuItem(data) {
       data.anh_minh_hoa || '',
       data.mo_ta || '',
       1,
-      data.so_luong || 0
+      data.so_luong || 0,
+      data.da_ban || 0
     ]
   );
   
@@ -488,6 +509,7 @@ export async function updateMenuItem(id, data) {
   if (data.anh_minh_hoa !== undefined) { fields.push('anh_minh_hoa = ?'); params.push(data.anh_minh_hoa); }
   if (data.mo_ta !== undefined) { fields.push('mo_ta = ?'); params.push(data.mo_ta); }
   if (data.so_luong !== undefined) { fields.push('so_luong = ?'); params.push(data.so_luong); }
+  if (data.da_ban !== undefined) { fields.push('da_ban = ?'); params.push(data.da_ban); }
   
   if (fields.length > 0) {
     params.push(id);
@@ -536,7 +558,7 @@ export async function deleteMenuItems(ids) {
 
 export async function getChefActiveItems() {
   return await dbAll(`
-    SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.trang_thai as status, oi.ten_size, mi.ten_mon as name, t.ten_ban as table_number, t.id as table_id, o.ma_phien as session_token, o.id as order_id, o.ngay_tao as created_at
+    SELECT oi.id as order_item_id, oi.so_luong as quantity, oi.trang_thai as status, oi.ten_size, mi.ten_mon as name, t.ten_ban as table_number, t.id as table_id, o.ma_phien as session_token, o.id as order_id, o.ngay_tao as created_at, oi.ghi_chu as note
     FROM chi_tiet_don_hang oi
     JOIN thuc_don mi ON oi.id_mon_an = mi.id
     JOIN don_hang o ON oi.id_don_hang = o.id

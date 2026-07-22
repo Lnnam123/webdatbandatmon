@@ -251,6 +251,10 @@
             </div>
             <h4 style="font-size: 18px; font-weight:800;">${item.ten_size ? item.name + ' (' + item.ten_size + ')' : item.name}</h4>
             <div style="font-size: 15px; color: var(--primary); font-weight:800; margin-top: 6px;">Số lượng: x${item.quantity}</div>
+            ${item.note ? `<div style="font-size: 13px; color: #b45309; background: #fef3c7; padding: 6px 10px; margin-top: 10px; border-radius: 4px; display:flex; align-items:center;">
+               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+               Ghi chú: <b style="margin-left:4px;">${item.note}</b>
+            </div>` : ''}
           </div>
           <div style="display: flex; gap: 10px;">
             <button class="btn btn-success btn-complete" style="flex: 1; padding: 10px 5px; font-size: 14px;" 

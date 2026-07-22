@@ -151,6 +151,26 @@ export default function createApiRouter(broadcast) {
     }
   });
 
+  // Xử lý gọi nhân viên
+  router.post('/call-staff', async (req, res) => {
+    const { table_id, note } = req.body;
+    if (!table_id) return res.status(400).json({ error: 'Missing table_id' });
+    try {
+      const table = await db.dbGet('SELECT ten_ban FROM ban_an WHERE id = ?', [table_id]);
+      const tableName = table ? table.ten_ban : `Bàn ${table_id}`;
+      broadcast((info) => info.role === 'cashier', { 
+        type: 'call_staff', 
+        table_id, 
+        tableName,
+        note 
+      });
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Lỗi máy chủ' });
+    }
+  });
+
   // 3. Yêu cầu tính tiền
   router.post('/checkout', async (req, res) => {
     const { table_id, session_token } = req.body;
@@ -353,13 +373,13 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes } = req.body;
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes, da_ban } = req.body;
       if (!ten_mon || !gia_tien || !loai_mon) {
         return res.status(400).json({ error: 'Thiếu thông tin bắt buộc (Tên, Giá, Loại)' });
       }
 
       const id = await db.addMenuItem({
-        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes
+        ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes, da_ban
       });
       res.json({ success: true, id });
     } catch (err) {
@@ -382,8 +402,8 @@ export default function createApiRouter(broadcast) {
       const token = authHeader.split(' ')[1];
       jwt.verify(token, SECRET_KEY);
       
-      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes } = req.body;
-      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes });
+      const { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes, da_ban } = req.body;
+      await db.updateMenuItem(req.params.id, { ten_mon, gia_tien, loai_mon, anh_minh_hoa, mo_ta, so_luong, sizes, da_ban });
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -503,10 +523,16 @@ export default function createApiRouter(broadcast) {
   // 7a. Thu ngân xác nhận món (Chuyển từ unconfirmed -> cooking)
   router.post('/cashier/confirm-orders', async (req, res) => {
     try {
-      const { table_id } = req.body;
+      const { table_id, item_ids } = req.body;
       if (!table_id) return res.status(400).json({ error: 'Thiếu table_id' });
 
-      const success = await db.confirmOrderItems(table_id);
+      let success = false;
+      if (item_ids && item_ids.length > 0) {
+        success = await db.confirmOrderItemsByIds(table_id, item_ids);
+      } else {
+        success = await db.confirmOrderItems(table_id); // Fallback
+      }
+
       if (success) {
         // Báo cho bếp biết có món mới cần làm
         broadcast((info) => info.role === 'chef', { type: 'new_order', table_id });

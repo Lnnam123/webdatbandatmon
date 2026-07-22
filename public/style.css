@@ -954,6 +954,75 @@ main {
   align-items: flex-end;
 }
 
+/* Base list style (default) */
+.kiot-menu-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Grid View Modifiers */
+#menu-items-grid.grid-view .kiot-menu-section-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+#menu-items-grid.grid-view .kiot-menu-item {
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+  height: 100%;
+}
+
+#menu-items-grid.grid-view .kiot-item-img {
+  width: 100%;
+  height: 130px;
+}
+
+#menu-items-grid.grid-view .kiot-item-info {
+  justify-content: space-between;
+  margin-top: 0;
+  flex: 1;
+}
+
+#menu-items-grid.grid-view .kiot-item-actions {
+  margin-top: 8px !important;
+  align-items: center;
+}
+
+#menu-items-grid.grid-view .kiot-item-name {
+  font-size: 13px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+#menu-items-grid.grid-view .kiot-item-name + div {
+  display: none;
+}
+
+#menu-items-grid.grid-view .kiot-item-price {
+  font-size: 13px;
+}
+
+#menu-items-grid.grid-view .kiot-qty-wrapper {
+  transform: scale(0.85);
+  transform-origin: right center;
+}
+
+#menu-items-grid.grid-view .kiot-add-btn {
+  width: 28px;
+  height: 28px;
+}
+#menu-items-grid.grid-view .kiot-add-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .kiot-add-btn {
   width: 32px;
   height: 32px;

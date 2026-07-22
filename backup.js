@@ -7,6 +7,30 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function cleanupOldBackups(backupDir) {
+    try {
+        if (!fs.existsSync(backupDir)) return;
+        
+        const files = fs.readdirSync(backupDir)
+            .filter(file => file.endsWith('.sql'))
+            .map(file => ({
+                name: file,
+                time: fs.statSync(path.join(backupDir, file)).mtime.getTime()
+            }))
+            .sort((a, b) => b.time - a.time); // Mới nhất lên đầu
+            
+        if (files.length > 3) {
+            const filesToDelete = files.slice(3); // Bỏ qua 3 file mới nhất
+            filesToDelete.forEach(file => {
+                fs.unlinkSync(path.join(backupDir, file.name));
+                console.log(`[Backup Xoá]: Đã xoá bản sao lưu cũ: ${file.name}`);
+            });
+        }
+    } catch (err) {
+        console.error(`[Backup Lỗi]: Lỗi khi dọn dẹp các bản sao lưu cũ: ${err.message}`);
+    }
+}
+
 export function runBackupOnce(prefix = '') {
     return new Promise((resolve) => {
         const date = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
@@ -29,12 +53,14 @@ export function runBackupOnce(prefix = '') {
                         console.error(`[Backup Lỗi]: Không thể sao lưu database. Lỗi: ${err2.message}`);
                     } else {
                         console.log(`[Backup Thành Công]: Đã lưu Database (Laragon path) vào: ${backupFile}`);
+                        cleanupOldBackups(backupDir);
                     }
                     resolve();
                 });
                 return;
             }
             console.log(`[Backup Thành Công]: Đã lưu Database vào: ${backupFile}`);
+            cleanupOldBackups(backupDir);
             resolve();
         });
     });
