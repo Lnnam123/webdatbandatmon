@@ -448,6 +448,19 @@ export async function confirmPayment(tableId) {
   const table = await dbGet('SELECT ma_phien_hien_tai FROM ban_an WHERE id = ?', [tableId]);
   if (table) {
     if (table.ma_phien_hien_tai) {
+      // Find the active order
+      const order = await dbGet('SELECT id FROM don_hang WHERE id_ban = ? AND ma_phien = ?', [tableId, table.ma_phien_hien_tai]);
+      if (order) {
+        // Find all non-canceled items for this order
+        const orderItems = await pool.query('SELECT id_mon_an, so_luong FROM chi_tiet_don_hang WHERE id_don_hang = ? AND trang_thai != "canceled"', [order.id]);
+        const items = orderItems[0] || [];
+        
+        // Increase da_ban for each item
+        for (const item of items) {
+          await dbRun('UPDATE thuc_don SET da_ban = da_ban + ? WHERE id = ?', [item.so_luong, item.id_mon_an]);
+        }
+      }
+
       await dbRun(
         'UPDATE don_hang SET trang_thai = "paid" WHERE id_ban = ? AND ma_phien = ?',
         [tableId, table.ma_phien_hien_tai]

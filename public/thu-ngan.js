@@ -1215,7 +1215,7 @@ async function adjustStockLocally(id, diff) {
           filterMenuData();
         }
       } else {
-        alert(data.error || 'Lỗi cập nhật số lượng');
+        showToast(data.error || 'Lỗi cập nhật số lượng', false);
       }
     }
   } catch (err) {
@@ -1333,7 +1333,7 @@ async function submitAddMenu() {
   });
 
   if (!ten_mon || !gia_tien) {
-    alert('Vui lòng nhập đầy đủ Tên và Giá!');
+    showToast('Vui lòng nhập đầy đủ Tên và Giá!', false);
     return;
   }
 
@@ -1356,7 +1356,7 @@ async function submitAddMenu() {
       if (uploadRes.ok) {
         anh_minh_hoa = uploadData.url;
       } else {
-        alert('Lỗi khi tải ảnh lên: ' + uploadData.error);
+        showToast('Lỗi khi tải ảnh lên: ' + uploadData.error, false);
         return;
       }
     }
@@ -1388,11 +1388,11 @@ async function submitAddMenu() {
       showToast(id ? 'Đã sửa món thành công!' : 'Đã thêm món mới thành công!');
       loadMenuData();
     } else {
-      alert(data.error || 'Lỗi thao tác');
+      showToast(data.error || 'Lỗi thao tác', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -1523,7 +1523,7 @@ async function deleteCategoryItem(ma_danh_muc) {
       renderManageCategoryList();
       loadMenuData();
     } else {
-      alert('Lỗi khi xoá nhóm');
+      showToast('Lỗi khi xoá nhóm', false);
     }
   } catch (err) {
     console.error(err);
@@ -1541,7 +1541,7 @@ async function submitAddCategory() {
   const ten_danh_muc = document.getElementById('new-cat-ten').value.trim();
 
   if (!ma_danh_muc || !ten_danh_muc) {
-    alert('Vui lòng nhập đủ thông tin!');
+    showToast('Vui lòng nhập đủ thông tin!', false);
     return;
   }
 
@@ -1563,11 +1563,11 @@ async function submitAddCategory() {
       await loadCategories();
       loadMenuData();
     } else {
-      alert(data.error || 'Lỗi thêm nhóm');
+      showToast(data.error || 'Lỗi thêm nhóm', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -1590,11 +1590,11 @@ async function deleteMenu(id) {
       showToast('Đã xoá món ăn');
       loadMenuData();
     } else {
-      alert('Lỗi khi xoá món');
+      showToast('Lỗi khi xoá món', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi máy chủ');
+    showToast('Lỗi máy chủ', false);
   }
 }
 
@@ -1623,11 +1623,11 @@ async function deleteSelectedMenu() {
       document.getElementById('btn-delete-selected').style.display = 'none';
       loadMenuData();
     } else {
-      alert('Lỗi khi xoá món');
+      showToast('Lỗi khi xoá món', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi máy chủ');
+    showToast('Lỗi máy chủ', false);
   }
 }
 

@@ -280,7 +280,7 @@ async function adjustStockLocally(id, diff) {
           filterMenuData();
         }
       } else {
-        alert(data.error || 'Lỗi cập nhật số lượng');
+        showToast(data.error || 'Lỗi cập nhật số lượng', false);
       }
     }
   } catch (err) {
@@ -379,12 +379,25 @@ function previewImage(event) {
   }
 }
 
-function showToast(msg) {
+function showToast(msg, isSuccess = true) {
   const toast = document.getElementById('toast-notification');
   if (toast) {
     document.getElementById('toast-message').textContent = msg;
-    toast.style.display = 'block';
-    setTimeout(() => toast.style.display = 'none', 3000);
+    toast.style.display = 'flex';
+    if (isSuccess) {
+      toast.classList.add('toast-success');
+    } else {
+      toast.classList.remove('toast-success');
+    }
+    
+    // Trigger reflow
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.style.display = 'none', 300);
+    }, 3000);
   } else {
     alert(msg);
   }
@@ -412,7 +425,7 @@ async function submitAddMenu() {
   });
 
   if (!ten_mon || !gia_tien) {
-    alert('Vui lòng nhập đầy đủ Tên và Giá!');
+    showToast('Vui lòng nhập đầy đủ Tên và Giá!', false);
     return;
   }
 
@@ -435,7 +448,7 @@ async function submitAddMenu() {
       if (uploadRes.ok) {
         anh_minh_hoa = uploadData.url;
       } else {
-        alert('Lỗi khi tải ảnh lên: ' + uploadData.error);
+        showToast('Lỗi khi tải ảnh lên: ' + uploadData.error, false);
         return;
       }
     }
@@ -468,11 +481,11 @@ async function submitAddMenu() {
       showToast(id ? 'Đã sửa món thành công!' : 'Đã thêm món mới thành công!');
       loadMenuData();
     } else {
-      alert(data.error || 'Lỗi thao tác');
+      showToast(data.error || 'Lỗi thao tác', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -609,7 +622,7 @@ async function deleteCategoryItem(ma_danh_muc) {
       renderManageCategoryList();
       loadMenuData();
     } else {
-      alert('Lỗi khi xoá nhóm');
+      showToast('Lỗi khi xoá nhóm', false);
     }
   } catch (err) {
     console.error(err);
@@ -621,7 +634,7 @@ async function submitAddCategory() {
   const ten_danh_muc = document.getElementById('new-cat-ten').value.trim();
 
   if (!ma_danh_muc || !ten_danh_muc) {
-    alert('Vui lòng nhập đủ thông tin!');
+    showToast('Vui lòng nhập đủ thông tin!', false);
     return;
   }
 
@@ -643,11 +656,11 @@ async function submitAddCategory() {
       await loadCategories();
       loadMenuData();
     } else {
-      alert(data.error || 'Lỗi thêm nhóm');
+      showToast(data.error || 'Lỗi thêm nhóm', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -684,11 +697,11 @@ async function submitDeleteCategory() {
       loadMenuData();
     } else {
       const data = await res.json();
-      alert(data.error || 'Lỗi xoá nhóm');
+      showToast(data.error || 'Lỗi xoá nhóm', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -710,11 +723,11 @@ async function deleteMenu(id) {
       showToast('Đã xoá món ăn');
       loadMenuData();
     } else {
-      alert('Lỗi khi xoá món');
+      showToast('Lỗi khi xoá món', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi máy chủ');
+    showToast('Lỗi máy chủ', false);
   }
 }
 
@@ -743,11 +756,11 @@ async function deleteSelectedMenu() {
       document.getElementById('btn-delete-selected').style.display = 'none';
       loadMenuData();
     } else {
-      alert('Lỗi khi xoá món');
+      showToast('Lỗi khi xoá món', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi máy chủ');
+    showToast('Lỗi máy chủ', false);
   }
 }
 
@@ -901,7 +914,7 @@ async function submitAddArea() {
       await loadAreasData();
       await loadTablesData();
     } else {
-      alert('Lỗi thêm khu vực');
+      showToast('Lỗi thêm khu vực', false);
     }
   } catch (err) {
     console.error(err);
@@ -923,7 +936,7 @@ async function deleteArea(id) {
       await loadAreasData();
       await loadTablesData();
     } else {
-      alert('Lỗi xoá khu vực');
+      showToast('Lỗi xoá khu vực', false);
     }
   } catch (err) {
     console.error(err);
@@ -1149,7 +1162,7 @@ async function submitTable() {
   const qr_token = document.getElementById('table-qr').value.trim();
   const area_id = document.getElementById('table-area').value;
   
-  if (!table_number || !qr_token) return alert('Vui lòng nhập tên bàn và mã QR');
+  if (!table_number || !qr_token) return showToast('Vui lòng nhập tên bàn và mã QR', false);
   
   const token = sessionStorage.getItem('adminToken');
   const method = id ? 'PUT' : 'POST';
@@ -1178,11 +1191,11 @@ async function submitTable() {
       } else {
         errorMsg = `Lỗi ${res.status}: API chưa được cập nhật. Bạn đã khởi động lại Server chưa?`;
       }
-      alert(errorMsg);
+      showToast(errorMsg, false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -1190,7 +1203,7 @@ async function deleteTable(id) {
   const table = currentTablesData.find(t => t.id === id);
   if (!table) return;
   if (table.status !== 'available') {
-    alert('Không thể xoá bàn đang được sử dụng hoặc chờ thanh toán!');
+    showToast('Không thể xoá bàn đang được sử dụng hoặc chờ thanh toán!', false);
     return;
   }
 
@@ -1216,11 +1229,11 @@ async function deleteTable(id) {
       } else {
         errorMsg = `Lỗi ${res.status}: API chưa được cập nhật. Bạn đã khởi động lại Server chưa?`;
       }
-      alert(errorMsg);
+      showToast(errorMsg, false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -1412,8 +1425,8 @@ async function submitEmployee() {
   const password = document.getElementById('employee-password').value;
   const role = document.getElementById('employee-role').value;
   
-  if (!username) return alert('Vui lòng nhập tên đăng nhập');
-  if (!id && !password) return alert('Vui lòng nhập mật khẩu cho nhân viên mới');
+  if (!username) return showToast('Vui lòng nhập tên đăng nhập', false);
+  if (!id && !password) return showToast('Vui lòng nhập mật khẩu cho nhân viên mới', false);
   
   const token = sessionStorage.getItem('adminToken');
   const method = id ? 'PUT' : 'POST';
@@ -1435,11 +1448,11 @@ async function submitEmployee() {
       loadEmployeesData();
     } else {
       const data = await res.json();
-      alert(data.error || 'Lỗi lưu nhân viên');
+      showToast(data.error || 'Lỗi lưu nhân viên', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -1459,11 +1472,11 @@ async function deleteEmployee(id) {
       loadEmployeesData();
     } else {
       const data = await res.json();
-      alert(data.error || 'Không thể xoá nhân viên này');
+      showToast(data.error || 'Không thể xoá nhân viên này', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }
 
@@ -1538,7 +1551,7 @@ async function submitRestaurantSettings() {
   const dia_chi = document.getElementById('setting-res-address').value.trim();
   const so_dien_thoai = document.getElementById('setting-res-phone').value.trim();
   
-  if (!ten_nha_hang || !dia_chi || !so_dien_thoai) return alert('Vui lòng nhập đủ thông tin');
+  if (!ten_nha_hang || !dia_chi || !so_dien_thoai) return showToast('Vui lòng nhập đủ thông tin', false);
   
   const token = sessionStorage.getItem('adminToken');
   try {
@@ -1555,10 +1568,10 @@ async function submitRestaurantSettings() {
       showToast('Đã cập nhật thông tin nhà hàng!');
     } else {
       const data = await res.json();
-      alert(data.error || 'Lỗi cập nhật');
+      showToast(data.error || 'Lỗi cập nhật', false);
     }
   } catch (err) {
     console.error(err);
-    alert('Lỗi kết nối máy chủ');
+    showToast('Lỗi kết nối máy chủ', false);
   }
 }

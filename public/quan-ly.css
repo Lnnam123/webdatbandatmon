@@ -544,3 +544,25 @@ body {
     width: 95%;
   }
 }
+
+/* Toast Notification */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: white;
+  color: #333;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  display: none;
+  z-index: 9999;
+  transition: transform 0.3s ease;
+  align-items: center;
+  gap: 12px;
+}
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
