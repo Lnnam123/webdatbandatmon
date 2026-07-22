@@ -75,7 +75,7 @@ export async function initDb() {
     try {
       await pool.query(`ALTER TABLE ban_an ADD CONSTRAINT fk_ban_khu_vuc FOREIGN KEY (id_khu_vuc) REFERENCES khu_vuc(id) ON DELETE SET NULL`);
     } catch (e) {
-      if (e.code !== 'ER_DUP_KEY' && e.code !== 'ER_CANT_CREATE_TABLE') {
+      if (e.code !== 'ER_DUP_KEY' && e.code !== 'ER_CANT_CREATE_TABLE' && e.code !== 'ER_FK_DUP_NAME' && !e.message.includes('Duplicate foreign key constraint name')) {
         console.error('Error adding foreign key to ban_an:', e.message);
       }
     }

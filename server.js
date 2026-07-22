@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as db from './database.js';
 import createApiRouter from './api.js';
+import { startBackupCron, runBackupOnce } from './backup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,4 +92,18 @@ server.listen(PORT, '0.0.0.0', async () => {
   await db.initDb();
   console.log(`Server is running locally on http://localhost:${PORT}`);
   console.log(`To access from phone on same WiFi, use: http://<Your_IPv4_Address>:${PORT}`);
+  
+  // Khởi động trình tự động sao lưu Database
+  startBackupCron();
 });
+
+// Xử lý khi tắt server (Ctrl+C hoặc kill process)
+async function gracefulShutdown(signal) {
+  console.log(`\nNhận tín hiệu tắt server (${signal}). Đang thực hiện sao lưu tự động...`);
+  await runBackupOnce('shutdown');
+  console.log('Đã sao lưu xong. Đang tắt server...');
+  process.exit(0);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
